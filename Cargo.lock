@@ -3,24 +3,6 @@
 version = 4
 
 [[package]]
-name = "API_Template"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "async-trait",
- "futures-util",
- "mairie360_api_lib",
- "once_cell",
- "serde",
- "serde_json",
- "serial_test",
- "tokio",
- "tokio-postgres",
- "utoipa",
- "utoipa-swagger-ui",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -412,6 +394,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "113b4343b5f6617e7ad401ced8de3cc8b012e73a594347c307b90db3e9271289"
 dependencies = [
  "bytes",
+]
+
+[[package]]
+name = "calendar_api"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "async-trait",
+ "futures-util",
+ "mairie360_api_lib",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tokio",
+ "tokio-postgres",
+ "utoipa",
+ "utoipa-swagger-ui",
 ]
 
 [[package]]
