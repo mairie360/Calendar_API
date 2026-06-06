@@ -42,9 +42,9 @@ x-service: &service-template
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:dev-latest
+    image: ghcr.io/mairie360/database:dev-3bea6eb
     restart: always
-    container_name: mairie360-db-calendar-api #change api name
+    container_name: mairie360-db-calendar-api
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
@@ -52,7 +52,7 @@ services:
     expose:
       - "5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     networks:
       - backend
     healthcheck:
@@ -62,8 +62,8 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:dev-latest
-    container_name: mairie360-liquibase-calendar-api #change api name
+    image: ghcr.io/mairie360/liquibase-migrations:dev-3bea6eb
+    container_name: mairie360-liquibase-calendar-api
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,7 +72,7 @@ services:
       LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/mairie_360_database
       LIQUIBASE_COMMAND_USERNAME: ${DB_USER:-postgres}
       LIQUIBASE_COMMAND_PASSWORD: ${DB_PASSWORD:-password}
-      LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+      LIQUIBASE_SEARCH_PATH: /migrations
     command: >
       --changelog-file=changelog.xml
       update
@@ -122,7 +122,7 @@ services:
       - 1.1.1.1
     environment:
       <<: *common-env
-      PUBLIC_URL: http://core.development.mairie360.fr
+      PUBLIC_URL: http://calendar.development.mairie360.fr
       JWT_SECRET: b"secret"
       JWT_TIMEOUT: 3600
     depends_on:
@@ -150,4 +150,4 @@ services:
       calendar: #change api name
         condition: service_healthy
     extra_hosts:
-          - "calendar.development.mairie360.fr:127.0.0.1" # change api name
+      - "calendar.development.mairie360.fr:127.0.0.1" # change api name
