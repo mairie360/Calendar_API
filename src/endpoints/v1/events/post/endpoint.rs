@@ -37,7 +37,7 @@ impl ResponseError for PostEventError {
     }
 }
 
-async fn create_event(
+async fn trigger_create_event(
     state: web::Data<AppState>,
     user_id: u64,
     view: PostEventView,
@@ -67,7 +67,7 @@ async fn create_event(
     )
 )]
 #[post("/")]
-pub async fn post(
+pub async fn create_event(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     request_view: web::Json<PostEventView>,
@@ -76,6 +76,6 @@ pub async fn post(
         Ok(view) => view,
         Err(_) => return Err(PostEventError::BadRequest),
     };
-    let calendar = create_event(state, auth_user.id, view).await?;
+    let calendar = trigger_create_event(state, auth_user.id, view).await?;
     Ok(HttpResponse::Ok().json(calendar))
 }

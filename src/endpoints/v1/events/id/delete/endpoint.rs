@@ -35,7 +35,10 @@ impl ResponseError for DeleteEventError {
     }
 }
 
-async fn delete_event(state: web::Data<AppState>, event_id: u64) -> Result<(), DeleteEventError> {
+async fn trigger_delete_event(
+    state: web::Data<AppState>,
+    event_id: u64,
+) -> Result<(), DeleteEventError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(DeleteEventError::DatabaseError),
@@ -58,19 +61,19 @@ async fn delete_event(state: web::Data<AppState>, event_id: u64) -> Result<(), D
     ),
     tag = "Events",
     params(
-        ("id" = u64, Path, description = "Event ID")
+        ("event_id" = u64, Path, description = "Event ID")
     ),
     security(
         ("jwt" = [])
     )
 )]
 #[delete("/")]
-pub async fn delete(
+pub async fn delete_event(
     state: web::Data<AppState>,
     _: AuthenticatedUser,
     id: web::Path<u64>,
 ) -> Result<impl Responder, DeleteEventError> {
     let event_id = id.into_inner();
-    delete_event(state, event_id).await?;
+    trigger_delete_event(state, event_id).await?;
     Ok(HttpResponse::NoContent().finish())
 }

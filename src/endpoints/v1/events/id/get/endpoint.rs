@@ -37,7 +37,7 @@ impl ResponseError for GetEventError {
     }
 }
 
-async fn get_calendar(
+async fn trigger_get_event(
     state: web::Data<AppState>,
     user_id: u64,
     event_id: u64,
@@ -60,7 +60,7 @@ async fn get_calendar(
     get,
     path = "",
     params(
-        ("id" = u64, Path, description = "Event ID")
+        ("event_id" = u64, Path, description = "Event ID")
     ),
     responses(
         (status = 200, description = "Event details", body = GetEventResultView),
@@ -73,12 +73,12 @@ async fn get_calendar(
     )
 )]
 #[get("/")]
-pub async fn get(
+pub async fn get_event(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     path_params: web::Query<u64>,
 ) -> Result<impl Responder, GetEventError> {
     let params = path_params.into_inner();
-    let calendar = get_calendar(state, auth_user.id, params).await?;
+    let calendar = trigger_get_event(state, auth_user.id, params).await?;
     Ok(HttpResponse::Ok().json(calendar))
 }

@@ -37,7 +37,7 @@ impl ResponseError for GetCalendarError {
     }
 }
 
-async fn get_calendar(
+async fn trigger_get_calendar(
     state: web::Data<AppState>,
     user_id: u64,
     params: GetCalendarParams,
@@ -70,12 +70,12 @@ async fn get_calendar(
     )
 )]
 #[get("/calendar")]
-pub async fn get(
+pub async fn get_calendar(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     path_params: web::Query<GetCalendarParams>,
 ) -> Result<impl Responder, GetCalendarError> {
     let params = path_params.try_into()?;
-    let calendar = get_calendar(state, auth_user.id, params).await?;
+    let calendar = trigger_get_calendar(state, auth_user.id, params).await?;
     Ok(HttpResponse::Ok().json(calendar))
 }

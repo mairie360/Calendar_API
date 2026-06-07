@@ -42,7 +42,7 @@ impl ResponseError for AddMemberError {
     }
 }
 
-async fn create_event(
+async fn add_member(
     state: web::Data<AppState>,
     user_id: u64,
     view: PostMemberView,
@@ -60,20 +60,24 @@ async fn create_event(
 #[utoipa::path(
     post,
     path = "",
+    params(
+        ("event_id" = u64, Path, description = "Event ID")
+    ),
+
     responses(
         (status = 200, description = "Member added successfully", body = PostMemberView),
         (status = 400, description = "Bad request"),
         (status = 404, description = "Unknown event"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Events",
     request_body = PostMemberView,
     security(
         ("jwt" = [])
-    )
+    ),
+    tag = "Events",
 )]
 #[post("/")]
-pub async fn post(
+pub async fn add_event_member(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     request_view: web::Json<PostMemberView>,
@@ -81,6 +85,6 @@ pub async fn post(
     let view = request_view
         .try_into()
         .map_err(|_| AddMemberError::BadRequest)?;
-    let calendar = create_event(state, auth_user.id, view).await?;
+    let calendar = add_member(state, auth_user.id, view).await?;
     Ok(HttpResponse::Ok().json(calendar))
 }

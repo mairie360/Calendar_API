@@ -42,7 +42,7 @@ impl ResponseError for RemoveMemberError {
     }
 }
 
-async fn delete_event(
+async fn remove_member(
     state: web::Data<AppState>,
     params: DeleteMemberParams,
 ) -> Result<(), RemoveMemberError> {
@@ -75,12 +75,12 @@ async fn delete_event(
     )
 )]
 #[delete("/")]
-pub async fn delete(
+pub async fn remove_event_member(
     state: web::Data<AppState>,
     _: AuthenticatedUser,
     params: web::Query<DeleteMemberParams>,
 ) -> Result<impl Responder, RemoveMemberError> {
     let params = params.try_into()?;
-    delete_event(state, params).await?;
+    remove_member(state, params).await?;
     Ok(HttpResponse::NoContent().finish())
 }

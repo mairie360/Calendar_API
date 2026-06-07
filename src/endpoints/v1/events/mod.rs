@@ -8,6 +8,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/events")
             .configure(id::config)
-            .service(post::endpoint::post),
+            .service(post::endpoint::create_event),
     );
 }

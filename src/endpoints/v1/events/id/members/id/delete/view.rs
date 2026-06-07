@@ -4,17 +4,17 @@ use crate::endpoints::v1::events::id::members::id::delete::endpoint::RemoveMembe
 
 #[derive(Debug, Clone, ToSchema, serde::Deserialize)]
 pub struct DeleteMemberParams {
-    id: Option<String>,
+    event_id: Option<String>,
     member_id: Option<String>,
 }
 
 impl IntoParams for DeleteMemberParams {
     fn into_params(
-        parameter_in_provider: impl Fn() -> Option<utoipa::openapi::path::ParameterIn>,
+        _parameter_in_provider: impl Fn() -> Option<utoipa::openapi::path::ParameterIn>,
     ) -> Vec<utoipa::openapi::path::Parameter> {
         vec![
             utoipa::openapi::path::ParameterBuilder::new()
-                .name("id")
+                .name("event_id")
                 .schema(Some(
                     utoipa::openapi::ObjectBuilder::new()
                         .schema_type(utoipa::openapi::schema::Type::String)
@@ -23,7 +23,8 @@ impl IntoParams for DeleteMemberParams {
                         ))),
                 ))
                 .required(utoipa::openapi::Required::True)
-                .parameter_in(parameter_in_provider().unwrap_or_default())
+                // Force this parameter to be treated as a Path parameter
+                .parameter_in(utoipa::openapi::path::ParameterIn::Path)
                 .build(),
             utoipa::openapi::path::ParameterBuilder::new()
                 .name("member_id")
@@ -35,19 +36,23 @@ impl IntoParams for DeleteMemberParams {
                         ))),
                 ))
                 .required(utoipa::openapi::Required::True)
-                .parameter_in(parameter_in_provider().unwrap_or_default())
+                // Force this parameter to be treated as a Path parameter
+                .parameter_in(utoipa::openapi::path::ParameterIn::Path)
                 .build(),
         ]
     }
 }
 
 impl DeleteMemberParams {
-    pub fn new(id: Option<String>, member_id: Option<String>) -> Self {
-        Self { id, member_id }
+    pub fn new(event_id: Option<String>, member_id: Option<String>) -> Self {
+        Self {
+            event_id,
+            member_id,
+        }
     }
 
-    pub fn id(&self) -> &Option<String> {
-        &self.id
+    pub fn event_id(&self) -> &Option<String> {
+        &self.event_id
     }
 
     pub fn member_id(&self) -> &Option<String> {
@@ -59,7 +64,7 @@ impl TryFrom<actix_web::web::Query<DeleteMemberParams>> for DeleteMemberParams {
     type Error = RemoveMemberError;
 
     fn try_from(params: actix_web::web::Query<DeleteMemberParams>) -> Result<Self, Self::Error> {
-        if params.id.is_none() {
+        if params.event_id.is_none() {
             return Err(RemoveMemberError::UnknownEvent);
         }
         if params.member_id.is_none() {

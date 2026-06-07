@@ -63,7 +63,7 @@ async fn get_members(
     get,
     path = "",
     params(
-        ("id" = u64, Path, description = "Event ID")
+        ("event_id" = u64, Path, description = "Event ID")
     ),
     responses(
         (status = 200, description = "Event members", body = GetMembersResultView),
@@ -77,7 +77,7 @@ async fn get_members(
     )
 )]
 #[get("/")]
-pub async fn get(
+pub async fn get_event_members(
     state: web::Data<AppState>,
     _: AuthenticatedUser,
     path_params: web::Query<Option<u64>>,

@@ -47,7 +47,7 @@ impl ResponseError for PatchEventError {
     }
 }
 
-async fn patch_calendar(
+async fn trigger_patch_event(
     state: web::Data<AppState>,
     user_id: u64,
     params: PatchEventParams,
@@ -69,7 +69,7 @@ async fn patch_calendar(
     patch,
     path = "",
     params(
-        ("id" = u64, Path, description = "Event ID"),
+        ("event_id" = u64, Path, description = "Event ID"),
         ("reccurent" = bool, Query, description = "Whether the event is recurring")
     ),
     responses(
@@ -85,7 +85,7 @@ async fn patch_calendar(
     )
 )]
 #[patch("/")]
-pub async fn patch(
+pub async fn patch_event(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     path_params: web::Query<PatchEventParams>,
@@ -95,6 +95,6 @@ pub async fn patch(
         .try_into()
         .map_err(|_| PatchEventError::BadRequest)?;
     let view = view.try_into().map_err(|_| PatchEventError::BadRequest)?;
-    let calendar = patch_calendar(state, auth_user.id, param, view).await?;
+    let calendar = trigger_patch_event(state, auth_user.id, param, view).await?;
     Ok(HttpResponse::Ok().json(calendar))
 }

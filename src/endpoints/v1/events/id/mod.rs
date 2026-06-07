@@ -8,10 +8,10 @@ use actix_web::web;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/{id}")
-            .service(get::endpoint::get)
-            .service(patch::endpoint::patch)
-            .service(delete::endpoint::delete)
+        web::scope("/{event_id}")
+            .service(get::endpoint::get_event)
+            .service(patch::endpoint::patch_event)
+            .service(delete::endpoint::delete_event)
             .configure(members::config),
     );
 }

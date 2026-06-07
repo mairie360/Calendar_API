@@ -5,6 +5,6 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(nest(
     (path = "/", api = PostDoc),
-    (path = "/{id}", api = IdDoc),
+    (path = "/{event_id}", api = IdDoc),
 ))]
 pub struct EventsDoc;
