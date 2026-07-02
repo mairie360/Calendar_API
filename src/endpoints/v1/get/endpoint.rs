@@ -3,6 +3,8 @@ use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::calendar::get::query::get_calendar_query;
+use crate::database::calendar::get::view::GetCalendarQueryView;
 use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -49,10 +51,14 @@ async fn trigger_get_calendar(
     };
 
     //query
+    let view = GetCalendarQueryView::new(params.start().unwrap(), params.end().unwrap(), user_id);
+    let events = get_calendar_query(view, pool)
+        .await
+        .map_err(|_| GetCalendarError::DatabaseError)?;
 
     // update cache
 
-    Ok(GetCalendarResultView::new(vec![]))
+    Ok(events.into())
 }
 
 #[utoipa::path(

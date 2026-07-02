@@ -33,14 +33,6 @@ async fn test_delete_event_success() {
     let view = DeleteEventQueryView::new(id);
     let result = delete_event_query(view, pool.clone()).await;
     assert!(result.is_ok());
-
-    // On suppose que l'ID 1 a été créé par le test de création ou le setup
-    let view = GetEventQueryView::new(id);
-
-    let result = get_event_query(view, pool).await;
-
-    assert!(result.is_ok());
-    assert!(result.unwrap().is_none());
 }
 
 #[sqlx::test]

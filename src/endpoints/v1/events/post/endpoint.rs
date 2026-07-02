@@ -3,6 +3,8 @@ use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::event::create::query::create_event_by_user_query;
+use crate::database::event::create::view::CreateEventByUserQueryView;
 use crate::endpoints::v1::events::post::view::{PostEventResultView, PostEventView};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,16 +49,28 @@ async fn trigger_create_event(
         None => return Err(PostEventError::DatabaseError),
     };
 
-    //query
+    let view = CreateEventByUserQueryView::new(
+        &view.custom_name().unwrap_or_default(),
+        view.custom_description().as_deref(),
+        *view.events_start_time(),
+        *view.events_end_time(),
+        user_id,
+        None,
+        user_id,
+    );
 
-    Ok(PostEventResultView::new(0))
+    let result = create_event_by_user_query(view, pool)
+        .await
+        .map_err(|_| PostEventError::DatabaseError)?;
+
+    Ok(PostEventResultView::new(result as u64))
 }
 
 #[utoipa::path(
     post,
     path = "",
     responses(
-        (status = 200, description = "Event created successfully", body = PostEventResultView),
+        (status = 201, description = "Event created successfully", body = PostEventResultView),
         (status = 400, description = "Bad request"),
         (status = 500, description = "Internal server error")
     ),
@@ -77,5 +91,5 @@ pub async fn create_event(
         Err(_) => return Err(PostEventError::BadRequest),
     };
     let calendar = trigger_create_event(state, auth_user.id, view).await?;
-    Ok(HttpResponse::Ok().json(calendar))
+    Ok(HttpResponse::Created().json(calendar))
 }

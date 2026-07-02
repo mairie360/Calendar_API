@@ -1,7 +1,10 @@
 use chrono::{DateTime, Utc};
 use utoipa::ToSchema;
 
-use crate::endpoints::v1::events::post::view::Visibility;
+use crate::{
+    database::event::get_event_members::view::EventValidationStatus,
+    endpoints::v1::events::post::view::Visibility,
+};
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub enum MemberType {
@@ -33,16 +36,17 @@ impl MemberType {
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct Member {
     id: u64,
-    member_type: MemberType,
-    regular: bool,
+    // member_type: MemberType,
+    validation_status: EventValidationStatus,
 }
 
 impl Member {
-    pub fn new(id: u64, member_type: MemberType, regular: bool) -> Self {
+    // pub fn new(id: u64, member_type: MemberType, regular: bool) -> Self {
+    pub fn new(id: u64, validation_status: EventValidationStatus) -> Self {
         Self {
             id,
-            member_type,
-            regular,
+            // member_type,
+            validation_status,
         }
     }
 
@@ -50,12 +54,12 @@ impl Member {
         self.id
     }
 
-    pub fn member_type(&self) -> &str {
-        self.member_type.to_string()
-    }
+    // pub fn member_type(&self) -> &str {
+    //     self.member_type.to_string()
+    // }
 
-    pub fn regular(&self) -> bool {
-        self.regular
+    pub fn validation_status(&self) -> EventValidationStatus {
+        self.validation_status.clone()
     }
 }
 
@@ -67,10 +71,10 @@ pub struct GetEventResultView {
     events_start_time: DateTime<Utc>,
     #[schema(value_type = String, format = DateTime)]
     events_end_time: DateTime<Utc>,
-    name: Option<String>,
+    name: String,
     description: Option<String>,
     visibility: Option<Visibility>,
-    owner: Member,
+    owner: u64,
     members: Vec<Member>,
 }
 
@@ -80,10 +84,10 @@ impl GetEventResultView {
         recurrence_id: Option<u64>,
         events_start_time: DateTime<Utc>,
         events_end_time: DateTime<Utc>,
-        name: Option<String>,
-        description: Option<String>,
+        name: &str,
+        description: Option<&str>,
         visibility: Option<Visibility>,
-        owner: Member,
+        owner: u64,
         members: Vec<Member>,
     ) -> Self {
         Self {
@@ -91,8 +95,8 @@ impl GetEventResultView {
             recurrence_id,
             events_start_time,
             events_end_time,
-            name,
-            description,
+            name: name.to_string(),
+            description: description.map(|d| d.to_string()),
             visibility,
             owner,
             members,
