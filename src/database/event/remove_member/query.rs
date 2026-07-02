@@ -7,6 +7,12 @@ pub async fn remove_user_from_event_query(
     view: RemoveUserFromEventQueryView,
     pool: PgPool,
 ) -> Result<u64, DatabaseError> {
+    println!(
+        "remove_user_from_event_query: user_id = {}, event_id = {}",
+        view.user_id(),
+        view.event_id()
+    );
+
     let result = sqlx::query(&view.get_request())
         .bind(view.user_id() as i32)
         .bind(view.event_id() as i32)

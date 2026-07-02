@@ -46,11 +46,12 @@ impl Display for GetCalendarQueryView {
 
 impl DatabaseQueryView for GetCalendarQueryView {
     fn get_request(&self) -> String {
-        // Jointure avec event_members pour filtrer par user_id
-        "SELECT e.id, e.name, e.start_date, e.end_date
+        // On utilise DISTINCT pour éviter les doublons si un user est à la fois
+        // propriétaire et membre inscrit.
+        "SELECT DISTINCT e.id, e.name, e.start_date, e.end_date
          FROM events e
-         INNER JOIN event_members em ON e.id = em.event_id
-         WHERE em.user_id = $3
+         LEFT JOIN event_members em ON e.id = em.event_id
+         WHERE (em.user_id = $3 OR e.owner_id = $3)
          AND e.start_date >= $1
          AND e.end_date <= $2"
             .to_string()
@@ -59,33 +60,33 @@ impl DatabaseQueryView for GetCalendarQueryView {
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Event {
-    id: i64,
-    title: String,
+    id: i32,
+    name: String,
     start_date: chrono::DateTime<chrono::Utc>,
     end_date: chrono::DateTime<chrono::Utc>,
 }
 
 impl Event {
     pub fn new(
-        id: i64,
-        title: String,
+        id: i32,
+        name: &str,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
     ) -> Self {
         Self {
             id,
-            title,
+            name: name.to_string(),
             start_date,
             end_date,
         }
     }
 
-    pub fn id(&self) -> i64 {
+    pub fn id(&self) -> i32 {
         self.id
     }
 
-    pub fn title(&self) -> &str {
-        &self.title
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn start_date(&self) -> &chrono::DateTime<chrono::Utc> {
@@ -101,8 +102,8 @@ impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Event: id={} title={} start={} end={}",
-            self.id, self.title, self.start_date, self.end_date
+            "Event: id={} name={} start={} end={}",
+            self.id, self.name, self.start_date, self.end_date
         )
     }
 }

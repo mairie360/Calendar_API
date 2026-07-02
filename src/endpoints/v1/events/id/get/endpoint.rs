@@ -111,7 +111,7 @@ async fn trigger_get_event(
 pub async fn get_event(
     state: web::Data<AppState>,
     _: AuthenticatedUser,
-    path_params: web::Query<u64>,
+    path_params: web::Path<u64>,
 ) -> Result<impl Responder, GetEventError> {
     let params = path_params.into_inner();
     let calendar = trigger_get_event(state, params).await?;

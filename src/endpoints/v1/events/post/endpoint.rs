@@ -56,7 +56,7 @@ async fn trigger_create_event(
         *view.events_end_time(),
         user_id,
         None,
-        view.owner_group_id().unwrap_or_default(),
+        user_id,
     );
 
     let result = create_event_by_user_query(view, pool)
@@ -70,7 +70,7 @@ async fn trigger_create_event(
     post,
     path = "",
     responses(
-        (status = 200, description = "Event created successfully", body = PostEventResultView),
+        (status = 201, description = "Event created successfully", body = PostEventResultView),
         (status = 400, description = "Bad request"),
         (status = 500, description = "Internal server error")
     ),
@@ -91,5 +91,5 @@ pub async fn create_event(
         Err(_) => return Err(PostEventError::BadRequest),
     };
     let calendar = trigger_create_event(state, auth_user.id, view).await?;
-    Ok(HttpResponse::Ok().json(calendar))
+    Ok(HttpResponse::Created().json(calendar))
 }

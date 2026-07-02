@@ -89,8 +89,13 @@ pub async fn add_event_member(
     state: web::Data<AppState>,
     _: AuthenticatedUser,
     request_view: web::Json<PostMemberView>,
-    path_params: web::Query<u64>,
+    path_params: web::Path<u64>,
 ) -> Result<impl Responder, AddMemberError> {
-    let calendar = add_member(state, request_view.into_inner(), path_params.into_inner()).await?;
+    let calendar = add_member(
+        state,
+        request_view.try_into().unwrap(),
+        path_params.into_inner(),
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(calendar))
 }

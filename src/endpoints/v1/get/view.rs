@@ -130,7 +130,7 @@ impl From<Vec<Event>> for GetCalendarResultView {
                 .map(|e| {
                     EventView::new(
                         e.id() as u64,
-                        e.title().to_string(),
+                        e.name().to_string(),
                         *e.start_date(),
                         *e.end_date(),
                     )
