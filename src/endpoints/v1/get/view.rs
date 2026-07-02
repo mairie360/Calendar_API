@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use utoipa::{IntoParams, ToSchema};
 
+use crate::database::calendar::get::view::Event;
 use crate::endpoints::v1::get::endpoint::GetCalendarError;
 
 #[derive(Debug, Clone, ToSchema, serde::Deserialize)]
@@ -118,5 +119,23 @@ impl GetCalendarResultView {
 
     pub fn events(&self) -> &[EventView] {
         &self.events
+    }
+}
+
+impl From<Vec<Event>> for GetCalendarResultView {
+    fn from(events: Vec<Event>) -> Self {
+        Self {
+            events: events
+                .into_iter()
+                .map(|e| {
+                    EventView::new(
+                        e.id() as u64,
+                        e.title().to_string(),
+                        *e.start_date(),
+                        *e.end_date(),
+                    )
+                })
+                .collect(),
+        }
     }
 }

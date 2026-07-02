@@ -3,6 +3,8 @@ use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::event::remove_member::query::remove_user_from_event_query;
+use crate::database::event::remove_member::view::RemoveUserFromEventQueryView;
 use crate::endpoints::v1::events::id::members::id::delete::view::DeleteMemberParams;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,7 +53,12 @@ async fn remove_member(
         None => return Err(RemoveMemberError::DatabaseError),
     };
 
-    //query
+    let view =
+        RemoveUserFromEventQueryView::new(params.event_id.unwrap(), params.member_id.unwrap());
+
+    let _ = remove_user_from_event_query(view, pool)
+        .await
+        .map_err(|_| RemoveMemberError::DatabaseError);
 
     // update cache
 

@@ -81,16 +81,89 @@ impl Display for RecurrenceRule {
     }
 }
 
-pub struct CreateEventQueryView {
+pub struct CreateEventByUserQueryView {
     name: String,
     description: Option<String>,
     start_date: chrono::DateTime<chrono::Utc>,
     end_date: chrono::DateTime<chrono::Utc>,
     created_by: u64,
     recurrence: Option<RecurrenceRule>,
+    owner_id: u64,
 }
 
-impl CreateEventQueryView {
+impl CreateEventByUserQueryView {
+    pub fn new(
+        name: &str,
+        description: Option<&str>,
+        start_date: chrono::DateTime<chrono::Utc>,
+        end_date: chrono::DateTime<chrono::Utc>,
+        created_by: u64,
+        recurrence: Option<RecurrenceRule>,
+        owner_id: u64,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            description: description.map(|d| d.to_string()),
+            start_date,
+            end_date,
+            created_by,
+            recurrence,
+            owner_id,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &Option<String> {
+        &self.description
+    }
+
+    pub fn start_date(&self) -> &chrono::DateTime<chrono::Utc> {
+        &self.start_date
+    }
+
+    pub fn end_date(&self) -> &chrono::DateTime<chrono::Utc> {
+        &self.end_date
+    }
+
+    pub fn created_by(&self) -> u64 {
+        self.created_by
+    }
+
+    pub fn recurrence(&self) -> Option<RecurrenceRule> {
+        self.recurrence.clone()
+    }
+
+    pub fn owner_id(&self) -> u64 {
+        self.owner_id
+    }
+}
+
+impl DatabaseQueryView for CreateEventByUserQueryView {
+    fn get_request(&self) -> String {
+        "INSERT INTO events (name, description, start_date, end_date, created_by, owner_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id".to_string()
+    }
+}
+
+impl Display for CreateEventByUserQueryView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "name: {}, description: {:?}, start_date: {}, end_date: {}, created_by: {}, recurrence: {:?}, owner_id: {}", self.name, self.description, self.start_date, self.end_date, self.created_by, self.recurrence, self.owner_id)
+    }
+}
+
+pub struct CreateEventByGroupQueryView {
+    name: String,
+    description: Option<String>,
+    start_date: chrono::DateTime<chrono::Utc>,
+    end_date: chrono::DateTime<chrono::Utc>,
+    created_by: u64,
+    recurrence: Option<RecurrenceRule>,
+    owner_id: u64,
+}
+
+impl CreateEventByGroupQueryView {
     pub fn new(
         name: String,
         description: Option<String>,
@@ -98,6 +171,7 @@ impl CreateEventQueryView {
         end_date: chrono::DateTime<chrono::Utc>,
         created_by: u64,
         recurrence: Option<RecurrenceRule>,
+        owner_id: u64,
     ) -> Self {
         Self {
             name,
@@ -106,18 +180,47 @@ impl CreateEventQueryView {
             end_date,
             created_by,
             recurrence,
+            owner_id,
         }
     }
-}
 
-impl DatabaseQueryView for CreateEventQueryView {
-    fn get_request(&self) -> String {
-        "INSERT INTO events (name, description, start_date, end_date, created_by, recurrence) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id".to_string()
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &Option<String> {
+        &self.description
+    }
+
+    pub fn start_date(&self) -> &chrono::DateTime<chrono::Utc> {
+        &self.start_date
+    }
+
+    pub fn end_date(&self) -> &chrono::DateTime<chrono::Utc> {
+        &self.end_date
+    }
+
+    pub fn created_by(&self) -> u64 {
+        self.created_by
+    }
+
+    pub fn recurrence(&self) -> Option<RecurrenceRule> {
+        self.recurrence.clone()
+    }
+
+    pub fn owner_id(&self) -> u64 {
+        self.owner_id
     }
 }
 
-impl Display for CreateEventQueryView {
+impl DatabaseQueryView for CreateEventByGroupQueryView {
+    fn get_request(&self) -> String {
+        "INSERT INTO events (name, description, start_date, end_date, created_by, owner_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id".to_string()
+    }
+}
+
+impl Display for CreateEventByGroupQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "name: {}, description: {:?}, start_date: {}, end_date: {}, created_by: {}, recurrence: {:?}", self.name, self.description, self.start_date, self.end_date, self.created_by, self.recurrence)
+        write!(f, "name: {}, description: {:?}, start_date: {}, end_date: {}, created_by: {}, recurrence: {:?}, owner_group_id: {}", self.name, self.description, self.start_date, self.end_date, self.created_by, self.recurrence, self.owner_id)
     }
 }

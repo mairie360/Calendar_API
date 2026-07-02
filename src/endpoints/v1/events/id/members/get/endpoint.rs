@@ -3,6 +3,8 @@ use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::event::get_event_members::query::get_event_members_query;
+use crate::database::event::get_event_members::view::{GetEventMemberQueryView, Member};
 use crate::endpoints::v1::events::id::members::get::view::GetMembersResultView;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -53,10 +55,24 @@ async fn get_members(
     };
 
     //query
+    let view = GetEventMemberQueryView::new(event_id);
+    let result: Vec<Member> = get_event_members_query(view, pool)
+        .await
+        .map_err(|_| GetMembersError::DatabaseError)?;
 
     // update cache
 
-    Ok(GetMembersResultView::new(vec![]))
+    Ok(GetMembersResultView::new(
+        result
+            .into_iter()
+            .map(|member| {
+                crate::endpoints::v1::events::id::get::view::Member::new(
+                    member.user_id() as u64,
+                    member.validation_status().to_string().into(),
+                )
+            })
+            .collect(),
+    ))
 }
 
 #[utoipa::path(

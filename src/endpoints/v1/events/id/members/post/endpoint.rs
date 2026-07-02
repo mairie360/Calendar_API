@@ -3,6 +3,8 @@ use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::event::add_member::query::add_user_to_event_query;
+use crate::database::event::add_member::view::AddUserToEventQueryView;
 use crate::endpoints::v1::events::id::members::post::view::PostMemberView;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,16 +46,22 @@ impl ResponseError for AddMemberError {
 
 async fn add_member(
     state: web::Data<AppState>,
-    user_id: u64,
     view: PostMemberView,
+    project_id: u64,
 ) -> Result<(), AddMemberError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(AddMemberError::DatabaseError),
     };
 
-    //query
+    let view = AddUserToEventQueryView::new(view.user_id(), project_id);
+    let result = add_user_to_event_query(view, pool)
+        .await
+        .map_err(|_| AddMemberError::DatabaseError)?;
 
+    if result != 1 {
+        return Err(AddMemberError::UnknownEvent);
+    }
     Ok(())
 }
 
@@ -79,12 +87,10 @@ async fn add_member(
 #[post("/")]
 pub async fn add_event_member(
     state: web::Data<AppState>,
-    auth_user: AuthenticatedUser,
+    _: AuthenticatedUser,
     request_view: web::Json<PostMemberView>,
+    path_params: web::Query<u64>,
 ) -> Result<impl Responder, AddMemberError> {
-    let view = request_view
-        .try_into()
-        .map_err(|_| AddMemberError::BadRequest)?;
-    let calendar = add_member(state, auth_user.id, view).await?;
+    let calendar = add_member(state, request_view.into_inner(), path_params.into_inner()).await?;
     Ok(HttpResponse::Ok().json(calendar))
 }

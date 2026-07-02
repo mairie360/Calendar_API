@@ -169,8 +169,8 @@ impl PostEventView {
         &self.events_end_time
     }
 
-    pub fn custom_name(&self) -> &Option<String> {
-        &self.custom_name
+    pub fn custom_name(&self) -> Option<String> {
+        self.custom_name.clone()
     }
 
     pub fn custom_description(&self) -> &Option<String> {

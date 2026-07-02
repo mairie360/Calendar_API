@@ -4,8 +4,8 @@ use crate::endpoints::v1::events::id::members::id::delete::endpoint::RemoveMembe
 
 #[derive(Debug, Clone, ToSchema, serde::Deserialize)]
 pub struct DeleteMemberParams {
-    event_id: Option<String>,
-    member_id: Option<String>,
+    pub event_id: Option<u64>,
+    pub member_id: Option<u64>,
 }
 
 impl IntoParams for DeleteMemberParams {
@@ -44,19 +44,19 @@ impl IntoParams for DeleteMemberParams {
 }
 
 impl DeleteMemberParams {
-    pub fn new(event_id: Option<String>, member_id: Option<String>) -> Self {
+    pub fn new(event_id: Option<u64>, member_id: Option<u64>) -> Self {
         Self {
             event_id,
             member_id,
         }
     }
 
-    pub fn event_id(&self) -> &Option<String> {
-        &self.event_id
+    pub fn event_id(&self) -> Option<u64> {
+        self.event_id
     }
 
-    pub fn member_id(&self) -> &Option<String> {
-        &self.member_id
+    pub fn member_id(&self) -> Option<u64> {
+        self.member_id
     }
 }
 
