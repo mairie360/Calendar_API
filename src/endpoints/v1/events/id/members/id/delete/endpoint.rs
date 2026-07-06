@@ -3,6 +3,8 @@ use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::event::remove_member::query::remove_user_from_event_query;
+use crate::database::event::remove_member::view::RemoveUserFromEventQueryView;
 use crate::endpoints::v1::events::id::members::id::delete::view::DeleteMemberParams;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,6 +12,7 @@ pub enum RemoveMemberError {
     DatabaseError,
     UnknownEvent,
     UnknownMember,
+    NothingToDelete,
 }
 
 impl std::fmt::Display for RemoveMemberError {
@@ -24,6 +27,9 @@ impl std::fmt::Display for RemoveMemberError {
             RemoveMemberError::UnknownMember => {
                 write!(f, "Unknown member.")
             }
+            RemoveMemberError::NothingToDelete => {
+                write!(f, "Nothing to delete.")
+            }
         }
     }
 }
@@ -34,6 +40,7 @@ impl ResponseError for RemoveMemberError {
             RemoveMemberError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             RemoveMemberError::UnknownEvent => StatusCode::NOT_FOUND,
             RemoveMemberError::UnknownMember => StatusCode::NOT_FOUND,
+            RemoveMemberError::NothingToDelete => StatusCode::NOT_FOUND,
         }
     }
 
@@ -51,7 +58,18 @@ async fn remove_member(
         None => return Err(RemoveMemberError::DatabaseError),
     };
 
-    //query
+    let view = RemoveUserFromEventQueryView::new(params.member_id, params.event_id);
+
+    let result = remove_user_from_event_query(view, pool)
+        .await
+        .map_err(|_| RemoveMemberError::DatabaseError)?;
+
+    println!("result: {}", result);
+
+    if result == 0 {
+        eprintln!("result is 0, nothing to delete");
+        return Err(RemoveMemberError::NothingToDelete);
+    }
 
     // update cache
 
@@ -78,7 +96,7 @@ async fn remove_member(
 pub async fn remove_event_member(
     state: web::Data<AppState>,
     _: AuthenticatedUser,
-    params: web::Query<DeleteMemberParams>,
+    params: web::Path<DeleteMemberParams>,
 ) -> Result<impl Responder, RemoveMemberError> {
     let params = params.try_into()?;
     remove_member(state, params).await?;

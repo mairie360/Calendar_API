@@ -4,8 +4,8 @@ use crate::endpoints::v1::events::id::members::id::delete::endpoint::RemoveMembe
 
 #[derive(Debug, Clone, ToSchema, serde::Deserialize)]
 pub struct DeleteMemberParams {
-    event_id: Option<String>,
-    member_id: Option<String>,
+    pub event_id: u64,
+    pub member_id: u64,
 }
 
 impl IntoParams for DeleteMemberParams {
@@ -44,32 +44,26 @@ impl IntoParams for DeleteMemberParams {
 }
 
 impl DeleteMemberParams {
-    pub fn new(event_id: Option<String>, member_id: Option<String>) -> Self {
+    pub fn new(event_id: u64, member_id: u64) -> Self {
         Self {
             event_id,
             member_id,
         }
     }
 
-    pub fn event_id(&self) -> &Option<String> {
-        &self.event_id
+    pub fn event_id(&self) -> u64 {
+        self.event_id
     }
 
-    pub fn member_id(&self) -> &Option<String> {
-        &self.member_id
+    pub fn member_id(&self) -> u64 {
+        self.member_id
     }
 }
 
-impl TryFrom<actix_web::web::Query<DeleteMemberParams>> for DeleteMemberParams {
+impl TryFrom<actix_web::web::Path<DeleteMemberParams>> for DeleteMemberParams {
     type Error = RemoveMemberError;
 
-    fn try_from(params: actix_web::web::Query<DeleteMemberParams>) -> Result<Self, Self::Error> {
-        if params.event_id.is_none() {
-            return Err(RemoveMemberError::UnknownEvent);
-        }
-        if params.member_id.is_none() {
-            return Err(RemoveMemberError::UnknownMember);
-        }
+    fn try_from(params: actix_web::web::Path<DeleteMemberParams>) -> Result<Self, Self::Error> {
         Ok(params.into_inner())
     }
 }
