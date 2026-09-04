@@ -1,9 +1,10 @@
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::event::add_member::query::add_user_to_event_query;
 use crate::database::event::add_member::view::AddUserToEventQueryView;
 use crate::endpoints::v1::events::id::members::post::view::PostMemberView;
 
@@ -44,24 +45,24 @@ impl ResponseError for AddMemberError {
     }
 }
 
+impl From<ApiLibError> for AddMemberError {
+    fn from(err: ApiLibError) -> Self {
+        match err {
+            // Un event_id inconnu déclenche une violation de clé étrangère.
+            ApiLibError::Database(DbError::ForeignKeyViolation(_)) => AddMemberError::UnknownEvent,
+            ApiLibError::Serialization(_) => AddMemberError::BadRequest,
+            _ => AddMemberError::DatabaseError,
+        }
+    }
+}
+
 async fn add_member(
     state: web::Data<AppState>,
     view: PostMemberView,
     project_id: u64,
 ) -> Result<(), AddMemberError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(AddMemberError::DatabaseError),
-    };
-
-    let view = AddUserToEventQueryView::new(view.user_id(), project_id);
-    let result = add_user_to_event_query(view, pool)
-        .await
-        .map_err(|_| AddMemberError::DatabaseError)?;
-
-    if result != 1 {
-        return Err(AddMemberError::UnknownEvent);
-    }
+    let query = AddUserToEventQueryView::new(view.user_id(), project_id);
+    state.get_smart_db().execute(query).await?;
     Ok(())
 }
 
@@ -91,11 +92,7 @@ pub async fn add_event_member(
     request_view: web::Json<PostMemberView>,
     path_params: web::Path<u64>,
 ) -> Result<impl Responder, AddMemberError> {
-    let calendar = add_member(
-        state,
-        request_view.try_into().unwrap(),
-        path_params.into_inner(),
-    )
-    .await?;
-    Ok(HttpResponse::Ok().json(calendar))
+    let view = request_view.try_into()?;
+    add_member(state, view, path_params.into_inner()).await?;
+    Ok(HttpResponse::Ok().finish())
 }

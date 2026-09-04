@@ -1,9 +1,8 @@
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::event::delete::query::delete_event_query;
 use crate::database::event::delete::view::DeleteEventQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,18 +41,13 @@ async fn trigger_delete_event(
     state: web::Data<AppState>,
     event_id: u64,
 ) -> Result<(), DeleteEventError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(DeleteEventError::DatabaseError),
-    };
-
     let view = DeleteEventQueryView::new(event_id);
 
-    let _ = delete_event_query(view, pool)
+    state
+        .get_smart_db()
+        .execute(view)
         .await
         .map_err(|_| DeleteEventError::DatabaseError)?;
-
-    // update cache
 
     Ok(())
 }

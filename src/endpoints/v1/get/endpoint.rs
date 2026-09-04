@@ -1,10 +1,9 @@
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::calendar::get::query::get_calendar_query;
-use crate::database::calendar::get::view::GetCalendarQueryView;
+use crate::database::calendar::get::view::{Event, GetCalendarQueryView};
 use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,19 +43,12 @@ async fn trigger_get_calendar(
     user_id: u64,
     params: GetCalendarParams,
 ) -> Result<GetCalendarResultView, GetCalendarError> {
-    //get_cache
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetCalendarError::DatabaseError),
-    };
-
-    //query
     let view = GetCalendarQueryView::new(params.start().unwrap(), params.end().unwrap(), user_id);
-    let events = get_calendar_query(view, pool)
+    let events = state
+        .get_smart_db()
+        .fetch_all::<Event, _>(&view)
         .await
         .map_err(|_| GetCalendarError::DatabaseError)?;
-
-    // update cache
 
     Ok(events.into())
 }

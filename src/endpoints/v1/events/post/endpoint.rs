@@ -1,9 +1,8 @@
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::event::create::query::create_event_by_user_query;
 use crate::database::event::create::view::CreateEventByUserQueryView;
 use crate::endpoints::v1::events::post::view::{PostEventResultView, PostEventView};
 
@@ -44,12 +43,7 @@ async fn trigger_create_event(
     user_id: u64,
     view: PostEventView,
 ) -> Result<PostEventResultView, PostEventError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(PostEventError::DatabaseError),
-    };
-
-    let view = CreateEventByUserQueryView::new(
+    let query = CreateEventByUserQueryView::new(
         &view.custom_name().unwrap_or_default(),
         view.custom_description().as_deref(),
         *view.events_start_time(),
@@ -59,11 +53,13 @@ async fn trigger_create_event(
         user_id,
     );
 
-    let result = create_event_by_user_query(view, pool)
+    let inserted_id = state
+        .get_smart_db()
+        .fetch_scalar::<i32, _>(&query)
         .await
         .map_err(|_| PostEventError::DatabaseError)?;
 
-    Ok(PostEventResultView::new(result as u64))
+    Ok(PostEventResultView::new(inserted_id as u64))
 }
 
 #[utoipa::path(

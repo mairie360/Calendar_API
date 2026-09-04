@@ -1,7 +1,7 @@
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
 use crate::endpoints::v1::events::id::patch::view::{PatchEventParams, PatchEventView};
 
@@ -48,20 +48,12 @@ impl ResponseError for PatchEventError {
 }
 
 async fn trigger_patch_event(
-    state: web::Data<AppState>,
-    user_id: u64,
-    params: PatchEventParams,
-    view: PatchEventView,
+    _state: web::Data<AppState>,
+    _user_id: u64,
+    _params: PatchEventParams,
+    _view: PatchEventView,
 ) -> Result<(), PatchEventError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(PatchEventError::DatabaseError),
-    };
-
-    //query
-
-    // update cache
-
+    // TODO: implémenter la mise à jour d'un événement via la SmartDatabase.
     Ok(())
 }
 
@@ -95,6 +87,6 @@ pub async fn patch_event(
         .try_into()
         .map_err(|_| PatchEventError::BadRequest)?;
     let view = view.try_into().map_err(|_| PatchEventError::BadRequest)?;
-    let calendar = trigger_patch_event(state, auth_user.id, param, view).await?;
-    Ok(HttpResponse::Ok().json(calendar))
+    trigger_patch_event(state, auth_user.id, param, view).await?;
+    Ok(HttpResponse::Ok().finish())
 }
