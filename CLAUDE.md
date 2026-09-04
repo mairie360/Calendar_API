@@ -24,7 +24,12 @@ Cargo aliases are defined in `.cargo/config.toml`:
 | `cargo lint_fix` | `cargo fmt --all` |
 | `cargo check_code` | `cargo clippy --all-targets --all-features -- -D warnings` (CI gate) |
 | `cargo open_api` | Regenerate the OpenAPI JSON: `cargo run --example generate_openapi` |
+| `cargo cov_test` | `cargo llvm-cov` with a **60% line-coverage gate** (`--fail-under-lines 60`), ignoring `endpoints/`, `main.rs`, `lib.rs` — CI gate |
+| `cargo cov` | Same as `cov_test` but also writes `codecov.json` (`--codecov`) |
 | `cargo build` / `cargo run` | Build / run the server (needs the env vars below) |
+
+Only the `database/` layer is coverage-gated; `endpoints/` (thin actix glue) and the binary
+entrypoints are deliberately excluded, so put testable logic in `database/`.
 
 Tests:
 
@@ -38,6 +43,10 @@ Tests:
 OpenAPI client generation (TypeScript, for consumers): `npx orval` reads `openapi.json` per
 `orval.config.js` and writes `generated/`. Regenerate `openapi.json` with `cargo open_api` first.
 Both `openapi.*` and `generated/` are gitignored.
+
+`./performance_test.sh` (k6 load test, `docker-compose-performance.yml`) and `./security_test.sh`
+(OWASP ZAP scan, `docker-compose-security.yml`) spin up a throwaway stack, run, and tear down.
+The referenced compose files are not checked in — these are ops helpers, not part of `cargo test`.
 
 ### Running the full stack
 
