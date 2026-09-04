@@ -1,11 +1,10 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GetCalendarQueryView {
-    start: chrono::DateTime<chrono::Utc>,
-    end: chrono::DateTime<chrono::Utc>,
-    user_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl GetCalendarQueryView {
@@ -15,22 +14,24 @@ impl GetCalendarQueryView {
         user_id: u64,
     ) -> Self {
         Self {
-            start,
-            end,
-            user_id,
+            params: vec![
+                QueryParam::DateTime(start),
+                QueryParam::DateTime(end),
+                QueryParam::I32(user_id as i32),
+            ],
         }
     }
 
-    pub fn start(&self) -> &chrono::DateTime<chrono::Utc> {
-        &self.start
+    pub fn start(&self) -> chrono::DateTime<chrono::Utc> {
+        self.params[0].as_datetime()
     }
 
-    pub fn end(&self) -> &chrono::DateTime<chrono::Utc> {
-        &self.end
+    pub fn end(&self) -> chrono::DateTime<chrono::Utc> {
+        self.params[1].as_datetime()
     }
 
     pub fn user_id(&self) -> u64 {
-        self.user_id
+        self.params[2].as_i32() as u64
     }
 }
 
@@ -39,26 +40,34 @@ impl Display for GetCalendarQueryView {
         write!(
             f,
             "GetCalendarQueryView: start={} end={} user_id={}",
-            self.start, self.end, self.user_id
+            self.start(),
+            self.end(),
+            self.user_id()
         )
     }
 }
 
-impl DatabaseQueryView for GetCalendarQueryView {
-    fn get_request(&self) -> String {
+impl ApiRequestDto for GetCalendarQueryView {
+    fn query_sql(&self) -> &'static str {
         // On utilise DISTINCT pour éviter les doublons si un user est à la fois
-        // propriétaire et membre inscrit.
-        "SELECT DISTINCT e.id, e.name, e.start_date, e.end_date
-         FROM events e
-         LEFT JOIN event_members em ON e.id = em.event_id
-         WHERE (em.user_id = $3 OR e.owner_id = $3)
-         AND e.start_date >= $1
-         AND e.end_date <= $2"
-            .to_string()
+        // propriétaire et membre inscrit. Le résultat est encapsulé en JSON pour
+        // être décodé par la SmartDatabase.
+        "SELECT to_jsonb(t) FROM (
+            SELECT DISTINCT e.id, e.name, e.start_date, e.end_date
+            FROM events e
+            LEFT JOIN event_members em ON e.id = em.event_id
+            WHERE (em.user_id = $3 OR e.owner_id = $3)
+            AND e.start_date >= $1
+            AND e.end_date <= $2
+         ) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Event {
     id: i32,
     name: String,

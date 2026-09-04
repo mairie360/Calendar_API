@@ -1,34 +1,44 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GetEventQueryView {
-    id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl GetEventQueryView {
     pub fn new(id: u64) -> Self {
-        Self { id }
+        Self {
+            params: vec![QueryParam::I32(id as i32)],
+        }
     }
 
     pub fn id(&self) -> u64 {
-        self.id
+        self.params[0].as_i32() as u64
     }
 }
 
 impl Display for GetEventQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetEventQueryView(id={})", self.id)
+        write!(f, "GetEventQueryView(id={})", self.id())
     }
 }
 
-impl DatabaseQueryView for GetEventQueryView {
-    fn get_request(&self) -> String {
-        "SELECT name, description, created_by, recurrence_id, start_date, end_date, owner_id from events WHERE id = $1".to_string()
+impl ApiRequestDto for GetEventQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT to_jsonb(t) FROM (
+            SELECT name, description, created_by, recurrence_id, start_date, end_date, owner_id
+            FROM events WHERE id = $1
+         ) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 
-#[derive(Debug, sqlx::FromRow, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GetEventQueryResultView {
     name: String,
     description: Option<String>,

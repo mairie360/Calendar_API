@@ -1,12 +1,12 @@
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::event::get::query::get_event_query;
-use crate::database::event::get::view::GetEventQueryView;
-use crate::database::event::get_event_members::query::get_event_members_query;
-use crate::database::event::get_event_members::view::GetEventMemberQueryView;
+use crate::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
+use crate::database::event::get_event_members::view::{GetEventMemberQueryView, Member};
 use crate::endpoints::v1::events::id::get::view::GetEventResultView;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,34 +41,31 @@ impl ResponseError for GetEventError {
     }
 }
 
+impl From<ApiLibError> for GetEventError {
+    fn from(err: ApiLibError) -> Self {
+        match err {
+            ApiLibError::Database(DbError::NotFound) => GetEventError::UnknownEvent,
+            _ => GetEventError::DatabaseError,
+        }
+    }
+}
+
 async fn trigger_get_event(
     state: web::Data<AppState>,
     event_id: u64,
 ) -> Result<GetEventResultView, GetEventError> {
-    //get_cache
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetEventError::DatabaseError),
-    };
+    let db = state.get_smart_db();
 
-    //query
+    let event_view = GetEventQueryView::new(event_id);
+    let result = db
+        .fetch_one::<GetEventQueryResultView, _>(&event_view)
+        .await?;
 
-    let view = GetEventQueryView::new(event_id);
-    let result = get_event_query(view, pool.clone())
+    let members_view = GetEventMemberQueryView::new(event_id);
+    let members: Vec<Member> = db
+        .fetch_all::<Member, _>(&members_view)
         .await
         .map_err(|_| GetEventError::DatabaseError)?;
-
-    if result.is_none() {
-        return Err(GetEventError::UnknownEvent);
-    }
-    let result = result.unwrap();
-
-    let view = GetEventMemberQueryView::new(event_id);
-    let members = get_event_members_query(view, pool)
-        .await
-        .map_err(|_| GetEventError::DatabaseError)?;
-
-    // update cache
 
     Ok(GetEventResultView::new(
         event_id,

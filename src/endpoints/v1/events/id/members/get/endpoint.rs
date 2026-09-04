@@ -1,9 +1,8 @@
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::event::get_event_members::query::get_event_members_query;
 use crate::database::event::get_event_members::view::{GetEventMemberQueryView, Member};
 use crate::endpoints::v1::events::id::members::get::view::GetMembersResultView;
 
@@ -48,19 +47,12 @@ async fn get_members(
     state: web::Data<AppState>,
     event_id: u64,
 ) -> Result<GetMembersResultView, GetMembersError> {
-    //get_cache
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetMembersError::DatabaseError),
-    };
-
-    //query
     let view = GetEventMemberQueryView::new(event_id);
-    let result: Vec<Member> = get_event_members_query(view, pool)
+    let result: Vec<Member> = state
+        .get_smart_db()
+        .fetch_all::<Member, _>(&view)
         .await
         .map_err(|_| GetMembersError::DatabaseError)?;
-
-    // update cache
 
     Ok(GetMembersResultView::new(
         result

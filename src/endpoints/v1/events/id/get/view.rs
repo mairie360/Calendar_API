@@ -59,7 +59,7 @@ impl Member {
     // }
 
     pub fn validation_status(&self) -> EventValidationStatus {
-        self.validation_status.clone()
+        self.validation_status
     }
 }
 
@@ -79,6 +79,7 @@ pub struct GetEventResultView {
 }
 
 impl GetEventResultView {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: u64,
         recurrence_id: Option<u64>,
