@@ -1,9 +1,10 @@
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::event::remove_member::query::remove_user_from_event_query;
 use crate::database::event::remove_member::view::RemoveUserFromEventQueryView;
 use crate::endpoints::v1::events::id::members::id::delete::view::DeleteMemberParams;
 
@@ -49,29 +50,23 @@ impl ResponseError for RemoveMemberError {
     }
 }
 
+impl From<ApiLibError> for RemoveMemberError {
+    fn from(err: ApiLibError) -> Self {
+        match err {
+            // `DELETE ... RETURNING` ne renvoie aucune ligne : il n'y avait rien à supprimer.
+            ApiLibError::Database(DbError::NotFound) => RemoveMemberError::NothingToDelete,
+            _ => RemoveMemberError::DatabaseError,
+        }
+    }
+}
+
 async fn remove_member(
     state: web::Data<AppState>,
     params: DeleteMemberParams,
 ) -> Result<(), RemoveMemberError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(RemoveMemberError::DatabaseError),
-    };
-
     let view = RemoveUserFromEventQueryView::new(params.member_id, params.event_id);
 
-    let result = remove_user_from_event_query(view, pool)
-        .await
-        .map_err(|_| RemoveMemberError::DatabaseError)?;
-
-    println!("result: {}", result);
-
-    if result == 0 {
-        eprintln!("result is 0, nothing to delete");
-        return Err(RemoveMemberError::NothingToDelete);
-    }
-
-    // update cache
+    state.get_smart_db().fetch_scalar::<i32, _>(&view).await?;
 
     Ok(())
 }

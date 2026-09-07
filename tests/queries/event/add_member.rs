@@ -1,54 +1,45 @@
-use std::{thread::sleep, time::Duration};
-
-use crate::common::get_pool;
 use calendar_api::database::event::{
-    add_member::{query::add_user_to_event_query, view::AddUserToEventQueryView},
-    create::{query::create_event_by_user_query, view::CreateEventByUserQueryView},
-    get::{query::get_event_query, view::GetEventQueryView},
+    add_member::view::AddUserToEventQueryView,
+    create::view::CreateEventByUserQueryView,
+    get::view::{GetEventQueryResultView, GetEventQueryView},
 };
 use chrono::Utc;
+use mairie360_api_lib::database::db_interface::Database;
+use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use serial_test::serial;
 
-#[sqlx::test]
+#[tokio::test]
+#[serial]
 async fn test_add_member_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let db = Database::new(host).await;
+
     let start = Utc::now();
-    sleep(Duration::from_secs(1));
-    let end = Utc::now();
+    let end = start + chrono::Duration::hours(1);
 
-    let view = CreateEventByUserQueryView::new(
-        "Test Event",
-        Some("Description"),
-        start,
-        end,
-        1, // ID utilisateur admin (assure-toi qu'il existe en DB)
-        None,
-        1,
-    );
-
-    let result = create_event_by_user_query(view, pool.clone()).await;
-    let id = result.unwrap() as u64;
+    let view =
+        CreateEventByUserQueryView::new("Test Event", Some("Description"), start, end, 1, None, 1);
+    let id = db.fetch_scalar::<i32, _>(&view).await.unwrap() as u64;
 
     let view = AddUserToEventQueryView::new(2, id);
-    let result = add_user_to_event_query(view, pool.clone()).await;
-    assert!(result.is_ok());
+    assert!(db.execute(&view).await.is_ok());
 
-    // On suppose que l'ID 1 a été créé par le test de création ou le setup
     let view = GetEventQueryView::new(id);
-
-    let result = get_event_query(view, pool).await;
-
-    assert!(result.is_ok());
-    assert!(result.unwrap().is_some());
+    assert!(db
+        .fetch_one::<GetEventQueryResultView, _>(&view)
+        .await
+        .is_ok());
 }
 
-#[sqlx::test]
+#[tokio::test]
+#[serial]
 async fn test_add_member_event_not_found() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let db = Database::new(host).await;
 
     let view = AddUserToEventQueryView::new(1, 99999);
-    let result = add_user_to_event_query(view, pool.clone()).await;
-    assert!(result.is_err());
+    let result = db.execute(&view).await;
+
+    assert!(matches!(result, Err(DbError::ForeignKeyViolation(_))));
 }
