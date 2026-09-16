@@ -1,5 +1,6 @@
 use utoipa::ToSchema;
 
+/// Participant à assigner à l'événement du chemin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostMemberView {
     /// Identifiant Core API de l'utilisateur à assigner. Il doit être dans le périmètre

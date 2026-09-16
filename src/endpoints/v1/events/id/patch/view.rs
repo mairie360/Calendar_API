@@ -19,8 +19,9 @@ pub struct PatchEventView {
     /// Nouvel intitulé. Absent pour ne pas y toucher. Non vide, au plus 255 caractères.
     #[schema(min_length = 1, max_length = 255, example = "Conseil municipal")]
     pub name: Option<String>,
+    /// Nouvelle description. Absente pour ne pas y toucher ; `null` l'efface.
     #[serde(default, deserialize_with = "deserialize_present")]
-    #[schema(value_type = Option<String>, nullable)]
+    #[schema(value_type = Option<String>, nullable, example = "Ordre du jour envoyé une semaine avant")]
     pub description: Option<Option<String>>,
     /// Nouveau début. Absent pour ne pas y toucher.
     #[schema(value_type = Option<String>, format = DateTime, example = "2026-10-05T18:00:00Z")]
@@ -32,13 +33,17 @@ pub struct PatchEventView {
     pub visibility: Option<EventVisibility>,
     /// Nouvelle catégorie. Absente pour ne pas y toucher.
     pub category: Option<EventCategory>,
+    /// Nouveau service organisateur, au plus 255 caractères. Absent pour ne pas y toucher ;
+    /// `null` l'efface.
     #[serde(default, deserialize_with = "deserialize_present")]
-    #[schema(value_type = Option<String>, nullable)]
+    #[schema(value_type = Option<String>, nullable, max_length = 255, example = "Secrétariat général")]
     pub service: Option<Option<String>>,
+    /// Nouveau lieu. Absent pour ne pas y toucher ; `null` l'efface.
     #[serde(default, deserialize_with = "deserialize_present")]
-    #[schema(value_type = Option<String>, nullable)]
+    #[schema(value_type = Option<String>, nullable, example = "Salle du conseil")]
     pub location: Option<Option<String>>,
-    /// `null` retire la répétition.
+    /// Nouvelle règle de répétition. Absente pour ne pas y toucher ; `null` retire la
+    /// répétition. Doit rester cohérente avec la date de début, sinon `400`.
     #[serde(default, deserialize_with = "deserialize_present")]
     #[schema(value_type = Option<EventRecurrence>, nullable)]
     pub recurrence: Option<Option<EventRecurrence>>,

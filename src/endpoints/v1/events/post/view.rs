@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 
 use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, EventVisibility};
 
+/// Événement à créer ; l'appelant en devient propriétaire, sans être ajouté aux participants.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, ToSchema)]
 pub struct PostEventView {
     /// Intitulé de l'événement. Non vide une fois les espaces de bord retirés, au plus
@@ -49,6 +50,7 @@ impl From<PostEventView> for EventInput {
     }
 }
 
+/// Événement créé.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct PostEventResultView {
     /// Identifiant attribué à l'événement créé. L'appelant en est le créateur, mais pas encore
