@@ -5,6 +5,7 @@ use crate::database::event::access::view::ApprovalStatus;
 use crate::database::event::get_event_members::view::EventValidationStatus;
 use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
 
+/// Participant d'un événement et son statut de validation.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct Member {
     /// Identifiant Core API du participant.
@@ -32,6 +33,7 @@ pub struct EventPermissionsView {
     pub can_validate: bool,
 }
 
+/// Détail d'un événement.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetEventResultView {
     /// Identifiant de l'événement.

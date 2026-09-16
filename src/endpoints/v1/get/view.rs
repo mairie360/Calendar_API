@@ -15,6 +15,7 @@ pub struct GetCalendarParams {
     pub end: DateTime<Utc>,
 }
 
+/// Événement du calendrier, sur la période demandée.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct EventView {
     /// Identifiant de l'événement, à réutiliser dans `/api/v1/events/{event_id}/`.
@@ -62,6 +63,7 @@ impl From<Event> for EventView {
     }
 }
 
+/// Événements du calendrier sur la période demandée.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct GetCalendarResultView {
     /// Événements de l'appelant sur la période. Sans pagination ni limite de nombre.

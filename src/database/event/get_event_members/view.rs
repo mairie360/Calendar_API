@@ -38,6 +38,7 @@ impl Display for GetEventMemberQueryView {
     }
 }
 
+/// Statut de validation d'un participant : `validated`, `refused` ou `pending`.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EventValidationStatus {

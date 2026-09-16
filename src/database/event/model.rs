@@ -5,6 +5,7 @@ use mairie360_api_lib::database::db_interface::QueryParam;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Catégorie d'un événement : `meeting` (réunion), `activity` (activité), `ceremony` (cérémonie) ou `other` (autre, par défaut).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum EventCategory {
@@ -26,6 +27,7 @@ impl EventCategory {
     }
 }
 
+/// Visibilité d'un événement : `Public` (par défaut) ou `Private`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum EventVisibility {
     #[default]
@@ -42,6 +44,7 @@ impl EventVisibility {
     }
 }
 
+/// Unité de répétition d'un événement : `daily`, `weekly` ou `monthly`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RecurrenceFrequency {
