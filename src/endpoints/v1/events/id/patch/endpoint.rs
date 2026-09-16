@@ -12,16 +12,64 @@ use crate::endpoints::v1::events::validate_event_input;
 #[utoipa::path(
     patch,
     path = "",
+    summary = "Modifier un événement",
+    description = "Met à jour partiellement un événement : un champ absent reste inchangé.\n\n\
+                   Les champs facultatifs distinguent l'absence du `null` : omettre `description`, \
+                   `service`, `location` ou `recurrence` conserve la valeur actuelle, les envoyer à \
+                   `null` l'efface. Retirer la récurrence de cette façon supprime aussi la règle \
+                   devenue orpheline.\n\n\
+                   Réservé au participant qui est créateur de l'événement, ou qui a le rôle \
+                   Responsable, Maire ou Admin. Les mêmes contrôles qu'à la création s'appliquent, \
+                   sur l'événement tel qu'il sera après modification.\n\n\
+                   La réponse a un corps vide.",
     params(
-        ("event_id" = u64, Path, description = "Event ID")
+        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21)
     ),
-    request_body = PatchEventView,
+    request_body(
+        content = PatchEventView,
+        description = "Champs à modifier. Tous facultatifs ; `null` efface une valeur facultative.",
+        example = json!({ "location": "Salle des mariages", "recurrence": null })
+    ),
     responses(
-        (status = 204, description = "Event updated"),
-        (status = 400, description = "Bad request"),
-        (status = 403, description = "Only an assigned creator, Responsable, Maire or Admin can edit the event"),
-        (status = 404, description = "Unknown event"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 204,
+            description = "Événement mis à jour. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, `event_id` non entier, ou événement invalide après modification : nom vide ou trop long, fin antérieure ou égale au début, `service` trop long, ou récurrence incohérente.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'appelant n'est pas un participant créateur de l'événement, ni Responsable, Maire ou Admin.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden.")
+        ),
+        (
+            status = 404,
+            description = "Aucun événement ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown event.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        ),
     ),
     tag = "Events",
     security(

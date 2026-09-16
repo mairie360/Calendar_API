@@ -10,15 +10,57 @@ use crate::endpoints::error::{database_error, require_event_access, ApiError};
 #[utoipa::path(
     delete,
     path = "",
+    summary = "Retirer un participant d'un événement",
+    description = "Désassigne un utilisateur de l'événement et recalcule son statut de validation \
+                   global, le départ d'un participant pouvant suffire à le valider.\n\n\
+                   Réservé à qui peut gérer les participants : le créateur, ou une personne \
+                   habilitée à modifier l'événement.\n\n\
+                   Opération non idempotente : retirer quelqu'un qui n'est pas assigné répond \
+                   `404`, au même titre qu'un événement inexistant.",
     params(
-        ("event_id" = u64, Path, description = "Event ID"),
-        ("member_id" = u64, Path, description = "User ID of the member")
+        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21),
+        ("member_id" = u64, Path, description = "Identifiant Core API du participant à retirer.", example = 51)
     ),
     responses(
-        (status = 204, description = "Member removed; the event validation is recomputed"),
-        (status = 403, description = "The caller cannot manage the members"),
-        (status = 404, description = "Unknown event or member"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 204,
+            description = "Participant retiré et validation de l'événement recalculée. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Un segment de l'URL n'est pas un entier, ou le corps JSON est malformé.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Path deserialize error: can not parse `abc` to a u64")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'appelant ne peut pas gérer les participants de cet événement.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden.")
+        ),
+        (
+            status = 404,
+            description = "Aucun événement ne porte cet identifiant, ou l'utilisateur n'y est pas assigné.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown event.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        ),
     ),
     tag = "Events",
     security(

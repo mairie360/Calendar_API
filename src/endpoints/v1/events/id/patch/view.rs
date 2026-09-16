@@ -16,15 +16,21 @@ where
 /// Modification partielle : un champ absent est conservé ; `null` efface une valeur facultative.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, ToSchema)]
 pub struct PatchEventView {
+    /// Nouvel intitulé. Absent pour ne pas y toucher. Non vide, au plus 255 caractères.
+    #[schema(min_length = 1, max_length = 255, example = "Conseil municipal")]
     pub name: Option<String>,
     #[serde(default, deserialize_with = "deserialize_present")]
     #[schema(value_type = Option<String>, nullable)]
     pub description: Option<Option<String>>,
-    #[schema(value_type = Option<String>, format = DateTime)]
+    /// Nouveau début. Absent pour ne pas y toucher.
+    #[schema(value_type = Option<String>, format = DateTime, example = "2026-10-05T18:00:00Z")]
     pub event_start_time: Option<DateTime<Utc>>,
-    #[schema(value_type = Option<String>, format = DateTime)]
+    /// Nouvelle fin. Doit rester strictement postérieure au début après modification.
+    #[schema(value_type = Option<String>, format = DateTime, example = "2026-10-05T20:00:00Z")]
     pub event_end_time: Option<DateTime<Utc>>,
+    /// Nouvelle visibilité. Absente pour ne pas y toucher.
     pub visibility: Option<EventVisibility>,
+    /// Nouvelle catégorie. Absente pour ne pas y toucher.
     pub category: Option<EventCategory>,
     #[serde(default, deserialize_with = "deserialize_present")]
     #[schema(value_type = Option<String>, nullable)]

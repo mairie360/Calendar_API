@@ -65,13 +65,17 @@ pub const MAX_RECURRENCE_INTERVAL: u32 = 365;
 /// Règle de répétition d'un événement, stockée dans `recurrence_rules`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct EventRecurrence {
+    /// Unité de répétition, que `interval` multiplie.
     pub frequency: RecurrenceFrequency,
     /// Répétition tous les `interval` jours, semaines ou mois (1 à 365).
+    #[schema(minimum = 1, maximum = 365, example = 1)]
     pub interval: u32,
-    /// Jours d'une répétition hebdomadaire : 0 = dimanche … 6 = samedi.
+    /// Jours d'une répétition hebdomadaire : 0 = dimanche … 6 = samedi. `null` hors
+    /// répétition hebdomadaire.
+    #[schema(example = json!([1, 4]))]
     pub days_of_week: Option<Vec<u8>>,
     /// Dernier jour (inclus) où l'événement se répète ; absent = sans fin.
-    #[schema(value_type = Option<String>, format = Date)]
+    #[schema(value_type = Option<String>, format = Date, example = "2027-06-30")]
     pub ends_on: Option<NaiveDate>,
 }
 

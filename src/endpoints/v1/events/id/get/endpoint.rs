@@ -58,14 +58,78 @@ pub async fn load_event(
 #[utoipa::path(
     get,
     path = "",
+    summary = "Consulter le détail d'un événement",
+    description = "Renvoie un événement complet : description, visibilité, catégorie, lieu, \
+                   récurrence, participants avec leur statut de validation, statut d'approbation \
+                   global, et **droits de l'appelant** sur l'événement.\n\n\
+                   Le champ `permissions` évite de redériver les règles d'accès côté client : il \
+                   suffit de masquer les boutons dont le drapeau correspondant est `false`.\n\n\
+                   Réservé aux participants assignés : un événement existant auquel l'appelant \
+                   n'est pas assigné répond `403`, pas `404`.",
     params(
-        ("event_id" = u64, Path, description = "Event ID")
+        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21)
     ),
     responses(
-        (status = 200, description = "Event details", body = GetEventResultView),
-        (status = 403, description = "The caller is not assigned to the event"),
-        (status = 404, description = "Unknown event"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Détail de l'événement et droits de l'appelant.",
+            body = GetEventResultView,
+            example = json!({
+                "id": 21,
+                "name": "Conseil municipal",
+                "description": "Ordre du jour envoyé une semaine avant",
+                "events_start_time": "2026-10-05T18:00:00Z",
+                "events_end_time": "2026-10-05T20:00:00Z",
+                "visibility": "Public",
+                "category": "Meeting",
+                "service": "Secrétariat général",
+                "location": "Salle du conseil",
+                "recurrence": null,
+                "owner": 42,
+                "created_by": 42,
+                "members": [
+                    { "id": 42, "validation_status": "Validated" },
+                    { "id": 51, "validation_status": "Pending" }
+                ],
+                "approval_status": "Pending",
+                "permissions": { "can_edit": true, "can_delete": true, "can_validate": false }
+            })
+        ),
+        (
+            status = 400,
+            description = "Un segment de l'URL n'est pas un entier, ou le corps JSON est malformé.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Path deserialize error: can not parse `abc` to a u64")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'appelant n'est pas assigné à cet événement. Seuls ses participants peuvent le voir.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden.")
+        ),
+        (
+            status = 404,
+            description = "Aucun événement ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown event.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        ),
     ),
     tag = "Events",
     security(
