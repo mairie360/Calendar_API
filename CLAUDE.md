@@ -79,7 +79,8 @@ Three tiers, assembled in `main.rs`:
 
 ### Events model and access rules
 
-The schema is the Database **v1.2.0** release: `events.category` / `service_label` / `location`, and the
+The schema is the Database **v1.2.0** changeset, shipped in the `1.1.0` release of the
+`ghcr.io/mairie360/database` and `liquibase-migrations` images: `events.category` / `service_label` / `location`, and the
 repetition of an event in `recurrence_rules` (`events.recurrence_id`, `is_exception = false`; `end_date` is the
 day after `ends_on` at 00:00 UTC, NULL when the rule never ends). `src/database/event/model.rs` holds the shared
 types (`EventInput`, `EventRecurrence`…) and the SQL fragments reused by several views. Integration tests use the
