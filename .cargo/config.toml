@@ -18,6 +18,6 @@ cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "endpoints|main\\.r
 
 # Les images Postgres/Liquibase des tests d'intégration (mairie360_api_lib::test_setup) doivent inclure
 # le changeset v1.2.0 du schéma : catégorie, service et lieu des événements, jours des récurrences. Il est
-# livré dans la release 1.1.0 des images, la même que celle des fichiers docker-compose.
+# livré depuis la release 1.1.0 des images ; la version utilisée ici doit rester alignée sur les fichiers docker-compose.
 [env]
 TEST_DB_VERSION = "1.2.0"
