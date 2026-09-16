@@ -1,77 +1,23 @@
-use actix_web::http::StatusCode;
-use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use actix_web::{post, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-use crate::database::event::create::view::CreateEventByUserQueryView;
+use crate::database::event::create::view::CreateEventQueryView;
+use crate::database::event::model::EventInput;
+use crate::endpoints::error::{database_error, ApiError};
 use crate::endpoints::v1::events::post::view::{PostEventResultView, PostEventView};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum PostEventError {
-    BadRequest,
-    DatabaseError,
-}
-
-impl std::fmt::Display for PostEventError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PostEventError::BadRequest => {
-                write!(f, "Bad request")
-            }
-            PostEventError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
-        }
-    }
-}
-
-impl ResponseError for PostEventError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            PostEventError::BadRequest => StatusCode::BAD_REQUEST,
-            PostEventError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-async fn trigger_create_event(
-    state: web::Data<AppState>,
-    user_id: u64,
-    view: PostEventView,
-) -> Result<PostEventResultView, PostEventError> {
-    let query = CreateEventByUserQueryView::new(
-        &view.custom_name().unwrap_or_default(),
-        view.custom_description().as_deref(),
-        *view.events_start_time(),
-        *view.events_end_time(),
-        user_id,
-        None,
-        user_id,
-    );
-
-    let inserted_id = state
-        .get_smart_db()
-        .fetch_scalar::<i32, _>(&query)
-        .await
-        .map_err(|_| PostEventError::DatabaseError)?;
-
-    Ok(PostEventResultView::new(inserted_id as u64))
-}
+use crate::endpoints::v1::events::validate_event_input;
 
 #[utoipa::path(
     post,
     path = "",
+    request_body = PostEventView,
     responses(
-        (status = 201, description = "Event created successfully", body = PostEventResultView),
+        (status = 201, description = "Event created; the caller is its creator and owner", body = PostEventResultView),
         (status = 400, description = "Bad request"),
         (status = 500, description = "Internal server error")
     ),
     tag = "Events",
-    request_body = PostEventView,
     security(
         ("jwt" = [])
     )
@@ -80,12 +26,18 @@ async fn trigger_create_event(
 pub async fn create_event(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
-    request_view: web::Json<PostEventView>,
-) -> Result<impl Responder, PostEventError> {
-    let view = match request_view.try_into() {
-        Ok(view) => view,
-        Err(_) => return Err(PostEventError::BadRequest),
-    };
-    let calendar = trigger_create_event(state, auth_user.id, view).await?;
-    Ok(HttpResponse::Created().json(calendar))
+    view: web::Json<PostEventView>,
+) -> Result<impl Responder, ApiError> {
+    let input = EventInput::from(view.into_inner());
+    validate_event_input(&input)?;
+
+    let event_id: i32 = state
+        .get_smart_db()
+        .fetch_scalar(&CreateEventQueryView::new(auth_user.id, &input))
+        .await
+        .map_err(database_error)?;
+
+    Ok(HttpResponse::Created().json(PostEventResultView {
+        event_id: event_id as u64,
+    }))
 }

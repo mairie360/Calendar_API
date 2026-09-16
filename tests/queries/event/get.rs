@@ -1,5 +1,6 @@
+use crate::common::event_input;
 use calendar_api::database::event::{
-    create::view::CreateEventByUserQueryView,
+    create::view::CreateEventQueryView,
     get::view::{GetEventQueryResultView, GetEventQueryView},
 };
 use chrono::Utc;
@@ -17,8 +18,10 @@ async fn test_get_event_success() {
     let start = Utc::now();
     let end = start + chrono::Duration::days(1);
 
-    let view =
-        CreateEventByUserQueryView::new("Test Event", Some("Description"), start, end, 1, None, 1);
+    let view = CreateEventQueryView::new(
+        1,
+        &event_input("Test Event", Some("Description"), start, end),
+    );
 
     let id = db.fetch_scalar::<i32, _>(&view).await.unwrap();
 

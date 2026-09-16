@@ -1,71 +1,12 @@
-use actix_web::http::StatusCode;
-use actix_web::{get, web, HttpResponse, Responder, ResponseError};
+use actix_web::{get, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
+use crate::database::event::access::view::EventAccess;
 use crate::database::event::get_event_members::view::{GetEventMemberQueryView, Member};
+use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::v1::events::id::get::view::Member as MemberView;
 use crate::endpoints::v1::events::id::members::get::view::GetMembersResultView;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GetMembersError {
-    BadRequest,
-    DatabaseError,
-    UnknownEvent,
-}
-
-impl std::fmt::Display for GetMembersError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GetMembersError::BadRequest => {
-                write!(f, "Bad request.")
-            }
-            GetMembersError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
-            GetMembersError::UnknownEvent => {
-                write!(f, "Unknown event.")
-            }
-        }
-    }
-}
-
-impl ResponseError for GetMembersError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            GetMembersError::BadRequest => StatusCode::BAD_REQUEST,
-            GetMembersError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            GetMembersError::UnknownEvent => StatusCode::NOT_FOUND,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-async fn get_members(
-    state: web::Data<AppState>,
-    event_id: u64,
-) -> Result<GetMembersResultView, GetMembersError> {
-    let view = GetEventMemberQueryView::new(event_id);
-    let result: Vec<Member> = state
-        .get_smart_db()
-        .fetch_all::<Member, _>(&view)
-        .await
-        .map_err(|_| GetMembersError::DatabaseError)?;
-
-    Ok(GetMembersResultView::new(
-        result
-            .into_iter()
-            .map(|member| {
-                crate::endpoints::v1::events::id::get::view::Member::new(
-                    member.user_id() as u64,
-                    member.validation_status().to_string().into(),
-                )
-            })
-            .collect(),
-    ))
-}
 
 #[utoipa::path(
     get,
@@ -75,8 +16,8 @@ async fn get_members(
     ),
     responses(
         (status = 200, description = "Event members", body = GetMembersResultView),
-        (status = 400, description = "Bad request"),
-        (status = 404, description = "Event not found"),
+        (status = 403, description = "The caller is not assigned to the event"),
+        (status = 404, description = "Unknown event"),
         (status = 500, description = "Internal server error")
     ),
     tag = "Events",
@@ -87,10 +28,25 @@ async fn get_members(
 #[get("/")]
 pub async fn get_event_members(
     state: web::Data<AppState>,
-    _: AuthenticatedUser,
-    path_params: web::Path<u64>,
-) -> Result<impl Responder, GetMembersError> {
-    let event_id = path_params.into_inner();
-    let members = get_members(state, event_id).await?;
-    Ok(HttpResponse::Ok().json(members))
+    auth_user: AuthenticatedUser,
+    event_id: web::Path<u64>,
+) -> Result<impl Responder, ApiError> {
+    let event_id = event_id.into_inner();
+    require_event_access(&state, event_id, auth_user.id, EventAccess::can_view).await?;
+
+    let members: Vec<Member> = state
+        .get_smart_db()
+        .fetch_all(&GetEventMemberQueryView::new(event_id))
+        .await
+        .map_err(database_error)?;
+
+    Ok(HttpResponse::Ok().json(GetMembersResultView {
+        members: members
+            .into_iter()
+            .map(|member| MemberView {
+                id: member.user_id() as u64,
+                validation_status: member.validation_status(),
+            })
+            .collect(),
+    }))
 }

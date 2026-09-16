@@ -1,69 +1,26 @@
-use actix_web::http::StatusCode;
-use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
+use actix_web::{delete, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
+use crate::database::event::access::view::EventAccess;
 use crate::database::event::delete::view::DeleteEventQueryView;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DeleteEventError {
-    DatabaseError,
-    UnknownEvent,
-}
-
-impl std::fmt::Display for DeleteEventError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DeleteEventError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
-            DeleteEventError::UnknownEvent => {
-                write!(f, "Unknown event.")
-            }
-        }
-    }
-}
-
-impl ResponseError for DeleteEventError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            DeleteEventError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            DeleteEventError::UnknownEvent => StatusCode::BAD_REQUEST,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-async fn trigger_delete_event(
-    state: web::Data<AppState>,
-    event_id: u64,
-) -> Result<(), DeleteEventError> {
-    let view = DeleteEventQueryView::new(event_id);
-
-    state
-        .get_smart_db()
-        .execute(view)
-        .await
-        .map_err(|_| DeleteEventError::DatabaseError)?;
-
-    Ok(())
-}
+use crate::database::event::edit::view::DeleteOrphanRecurrenceQueryView;
+use crate::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
+use crate::endpoints::error::{database_error, require_event_access, ApiError};
 
 #[utoipa::path(
     delete,
     path = "",
-    responses(
-        (status = 204, description = "Event deleted successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 500, description = "Internal server error")
-    ),
-    tag = "Events",
     params(
         ("event_id" = u64, Path, description = "Event ID")
     ),
+    responses(
+        (status = 204, description = "Event deleted"),
+        (status = 403, description = "Only the creator can delete the event"),
+        (status = 404, description = "Unknown event"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Events",
     security(
         ("jwt" = [])
     )
@@ -71,10 +28,28 @@ async fn trigger_delete_event(
 #[delete("/")]
 pub async fn delete_event(
     state: web::Data<AppState>,
-    _: AuthenticatedUser,
-    id: web::Path<u64>,
-) -> Result<impl Responder, DeleteEventError> {
-    let event_id = id.into_inner();
-    trigger_delete_event(state, event_id).await?;
+    auth_user: AuthenticatedUser,
+    event_id: web::Path<u64>,
+) -> Result<impl Responder, ApiError> {
+    let event_id = event_id.into_inner();
+    require_event_access(&state, event_id, auth_user.id, EventAccess::can_delete).await?;
+
+    let db = state.get_smart_db();
+    let events: Vec<GetEventQueryResultView> = db
+        .fetch_all(&GetEventQueryView::new(event_id))
+        .await
+        .map_err(database_error)?;
+    db.execute(DeleteEventQueryView::new(event_id))
+        .await
+        .map_err(database_error)?;
+    if let Some(rule_id) = events
+        .first()
+        .and_then(GetEventQueryResultView::recurrence_id)
+    {
+        db.execute(DeleteOrphanRecurrenceQueryView::new(rule_id as u64))
+            .await
+            .map_err(database_error)?;
+    }
+
     Ok(HttpResponse::NoContent().finish())
 }

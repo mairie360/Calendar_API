@@ -1,64 +1,17 @@
-use actix_web::http::StatusCode;
-use actix_web::{get, web, HttpResponse, Responder, ResponseError};
+use actix_web::{get, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
 use crate::database::calendar::get::view::{Event, GetCalendarQueryView};
+use crate::endpoints::error::{database_error, ApiError};
 use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GetCalendarError {
-    BadParams,
-    DatabaseError,
-}
-
-impl std::fmt::Display for GetCalendarError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GetCalendarError::BadParams => {
-                write!(f, "Bad parameters")
-            }
-            GetCalendarError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
-        }
-    }
-}
-
-impl ResponseError for GetCalendarError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            GetCalendarError::BadParams => StatusCode::BAD_REQUEST,
-            GetCalendarError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-async fn trigger_get_calendar(
-    state: web::Data<AppState>,
-    user_id: u64,
-    params: GetCalendarParams,
-) -> Result<GetCalendarResultView, GetCalendarError> {
-    let view = GetCalendarQueryView::new(params.start().unwrap(), params.end().unwrap(), user_id);
-    let events = state
-        .get_smart_db()
-        .fetch_all::<Event, _>(&view)
-        .await
-        .map_err(|_| GetCalendarError::DatabaseError)?;
-
-    Ok(events.into())
-}
 
 #[utoipa::path(
     get,
     path = "calendar",
     params(GetCalendarParams),
     responses(
-        (status = 200, description = "Calendar in the specified time range", body = GetCalendarResultView),
+        (status = 200, description = "Events owned by or assigned to the caller in the time range, including recurring events whose rule overlaps it", body = GetCalendarResultView),
         (status = 400, description = "Bad request"),
         (status = 500, description = "Internal server error")
     ),
@@ -71,9 +24,22 @@ async fn trigger_get_calendar(
 pub async fn get_calendar(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
-    path_params: web::Query<GetCalendarParams>,
-) -> Result<impl Responder, GetCalendarError> {
-    let params = path_params.try_into()?;
-    let calendar = trigger_get_calendar(state, auth_user.id, params).await?;
-    Ok(HttpResponse::Ok().json(calendar))
+    params: web::Query<GetCalendarParams>,
+) -> Result<impl Responder, ApiError> {
+    if params.end < params.start {
+        return Err(ApiError::BadRequest);
+    }
+    let events: Vec<Event> = state
+        .get_smart_db()
+        .fetch_all(&GetCalendarQueryView::new(
+            params.start,
+            params.end,
+            auth_user.id,
+        ))
+        .await
+        .map_err(database_error)?;
+
+    Ok(HttpResponse::Ok().json(GetCalendarResultView {
+        events: events.into_iter().map(Into::into).collect(),
+    }))
 }

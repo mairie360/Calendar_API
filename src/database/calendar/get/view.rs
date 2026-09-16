@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
+use crate::database::event::model::{EventCategory, EventRecurrence};
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GetCalendarQueryView {
     params: Vec<QueryParam>,
@@ -49,17 +51,25 @@ impl Display for GetCalendarQueryView {
 
 impl ApiRequestDto for GetCalendarQueryView {
     fn query_sql(&self) -> &'static str {
-        // On utilise DISTINCT pour éviter les doublons si un user est à la fois
-        // propriétaire et membre inscrit. Le résultat est encapsulé en JSON pour
-        // être décodé par la SmartDatabase.
-        "SELECT to_jsonb(t) FROM (
-            SELECT DISTINCT e.id, e.name, e.start_date, e.end_date
-            FROM events e
-            LEFT JOIN event_members em ON e.id = em.event_id
-            WHERE (em.user_id = $3 OR e.owner_id = $3)
-            AND e.start_date >= $1
-            AND e.end_date <= $2
-         ) t"
+        // Événements dont l'utilisateur est propriétaire ou membre, qui chevauchent la période, ou dont la
+        // règle de répétition la chevauche (fin de règle exclusive).
+        concat!(
+            "SELECT to_jsonb(t) FROM ( \
+                SELECT e.id, e.name, e.start_date, e.end_date, e.category, \
+                    e.service_label AS service, e.location, \
+                    EXISTS (SELECT 1 FROM event_members em \
+                        WHERE em.event_id = e.id AND em.user_id = $3) AS is_member, ",
+            crate::recurrence_json_sql!(),
+            " AS recurrence \
+                FROM events e LEFT JOIN recurrence_rules rr ON rr.id = e.recurrence_id \
+                WHERE (e.owner_id = $3 OR EXISTS (SELECT 1 FROM event_members em \
+                        WHERE em.event_id = e.id AND em.user_id = $3)) \
+                  AND ((e.start_date <= $2 AND e.end_date >= $1) \
+                    OR (rr.id IS NOT NULL AND rr.start_date <= $2 \
+                        AND (rr.end_date IS NULL OR rr.end_date > $1))) \
+                ORDER BY e.start_date, e.id \
+             ) t"
+        )
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -69,10 +79,20 @@ impl ApiRequestDto for GetCalendarQueryView {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Event {
-    id: i32,
-    name: String,
-    start_date: chrono::DateTime<chrono::Utc>,
-    end_date: chrono::DateTime<chrono::Utc>,
+    pub id: i32,
+    pub name: String,
+    pub start_date: chrono::DateTime<chrono::Utc>,
+    pub end_date: chrono::DateTime<chrono::Utc>,
+    #[serde(default)]
+    pub category: EventCategory,
+    #[serde(default)]
+    pub service: Option<String>,
+    #[serde(default)]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub is_member: bool,
+    #[serde(default)]
+    pub recurrence: Option<EventRecurrence>,
 }
 
 impl Event {
@@ -87,6 +107,11 @@ impl Event {
             name: name.to_string(),
             start_date,
             end_date,
+            category: EventCategory::Other,
+            service: None,
+            location: None,
+            is_member: false,
+            recurrence: None,
         }
     }
 
