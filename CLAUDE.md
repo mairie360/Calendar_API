@@ -84,7 +84,8 @@ The schema is the Database **v1.2.0** changeset, shipped in the `1.1.0` release 
 repetition of an event in `recurrence_rules` (`events.recurrence_id`, `is_exception = false`; `end_date` is the
 day after `ends_on` at 00:00 UTC, NULL when the rule never ends). `src/database/event/model.rs` holds the shared
 types (`EventInput`, `EventRecurrence`…) and the SQL fragments reused by several views. Integration tests use the
-`TEST_DB_VERSION` pinned in `.cargo/config.toml`, the compose files use the same images.
+database images whose default tag is set by `mairie360_api_lib` (`1.2.1` for lib 1.2.2, override with the
+`TEST_DB_VERSION` env var); the compose files pin the same `1.2.1` images.
 
 Every `/{event_id}` operation goes through `endpoints/error.rs::require_event_access` (one
 `EventAccessQueryView` query; 404 unknown event, 403 refused): reading needs the caller to be a member; editing
