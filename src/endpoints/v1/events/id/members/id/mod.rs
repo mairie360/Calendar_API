@@ -1,5 +1,4 @@
 pub mod delete;
-pub mod doc;
 
 use actix_web::web;
 

@@ -1,5 +1,6 @@
+use crate::common::event_input;
 use calendar_api::database::event::{
-    add_member::view::AddUserToEventQueryView, create::view::CreateEventByUserQueryView,
+    add_member::view::AddUserToEventQueryView, create::view::CreateEventQueryView,
     remove_member::view::RemoveUserFromEventQueryView,
 };
 use chrono::Utc;
@@ -11,8 +12,10 @@ use serial_test::serial;
 async fn create_event(db: &Database) -> u64 {
     let start = Utc::now();
     let end = start + chrono::Duration::hours(1);
-    let view =
-        CreateEventByUserQueryView::new("Test Event", Some("Description"), start, end, 1, None, 1);
+    let view = CreateEventQueryView::new(
+        1,
+        &event_input("Test Event", Some("Description"), start, end),
+    );
     db.fetch_scalar::<i32, _>(&view).await.unwrap() as u64
 }
 

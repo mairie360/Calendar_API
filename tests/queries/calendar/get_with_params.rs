@@ -1,5 +1,6 @@
+use crate::common::event_input;
 use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
-use calendar_api::database::event::create::view::CreateEventByUserQueryView;
+use calendar_api::database::event::create::view::CreateEventQueryView;
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
@@ -14,7 +15,7 @@ async fn test_get_calendar_scoped_to_user() {
     let start = Utc::now();
     let end = start + Duration::hours(1);
 
-    let create = CreateEventByUserQueryView::new("Alice Only", None, start, end, 1, None, 1);
+    let create = CreateEventQueryView::new(1, &event_input("Alice Only", None, start, end));
     let id = db.fetch_scalar::<i32, _>(&create).await.unwrap();
 
     let window_start = start - Duration::days(1);

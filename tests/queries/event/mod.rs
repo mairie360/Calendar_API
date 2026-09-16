@@ -1,3 +1,4 @@
+pub mod access;
 pub mod add_member;
 pub mod create;
 pub mod delete;

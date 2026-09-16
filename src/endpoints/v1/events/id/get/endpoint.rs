@@ -1,103 +1,135 @@
-use actix_web::http::StatusCode;
-use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::database::error::DbError;
-use mairie360_api_lib::error::ApiLibError;
+use actix_web::{get, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
+use crate::database::event::access::view::EventAccess;
 use crate::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
 use crate::database::event::get_event_members::view::{GetEventMemberQueryView, Member};
-use crate::endpoints::v1::events::id::get::view::GetEventResultView;
+use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::v1::events::id::get::view::{
+    EventPermissionsView, GetEventResultView, Member as MemberView,
+};
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum GetEventError {
-    DatabaseError,
-    UnknownEvent,
-}
-
-impl std::fmt::Display for GetEventError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GetEventError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
-            GetEventError::UnknownEvent => {
-                write!(f, "Unknown event.")
-            }
-        }
-    }
-}
-
-impl ResponseError for GetEventError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            GetEventError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            GetEventError::UnknownEvent => StatusCode::NOT_FOUND,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-impl From<ApiLibError> for GetEventError {
-    fn from(err: ApiLibError) -> Self {
-        match err {
-            ApiLibError::Database(DbError::NotFound) => GetEventError::UnknownEvent,
-            _ => GetEventError::DatabaseError,
-        }
-    }
-}
-
-async fn trigger_get_event(
-    state: web::Data<AppState>,
+pub async fn load_event(
+    state: &web::Data<AppState>,
     event_id: u64,
-) -> Result<GetEventResultView, GetEventError> {
+    access: &EventAccess,
+) -> Result<GetEventResultView, ApiError> {
     let db = state.get_smart_db();
-
     let event_view = GetEventQueryView::new(event_id);
-    let result = db
-        .fetch_one::<GetEventQueryResultView, _>(&event_view)
-        .await?;
-
     let members_view = GetEventMemberQueryView::new(event_id);
-    let members: Vec<Member> = db
-        .fetch_all::<Member, _>(&members_view)
-        .await
-        .map_err(|_| GetEventError::DatabaseError)?;
+    let (events, members) = futures_util::try_join!(
+        db.fetch_all::<GetEventQueryResultView, _>(&event_view),
+        db.fetch_all::<Member, _>(&members_view),
+    )
+    .map_err(database_error)?;
+    let event = events.into_iter().next().ok_or(ApiError::NotFound)?;
+    let input = event.to_input();
 
-    Ok(GetEventResultView::new(
-        event_id,
-        result.recurrence_id().map(|id| id as u64),
-        result.start_date(),
-        result.end_date(),
-        result.name(),
-        result.description(),
-        None,
-        result.owner_id().unwrap_or_default() as u64,
-        members
+    Ok(GetEventResultView {
+        id: event_id,
+        name: input.name,
+        description: input.description,
+        events_start_time: input.start,
+        events_end_time: input.end,
+        visibility: input.visibility,
+        category: input.category,
+        service: input.service,
+        location: input.location,
+        recurrence: input.recurrence,
+        owner: event.owner_id().map(|id| id as u64),
+        created_by: event.created_by().map(|id| id as u64),
+        members: members
             .into_iter()
-            .map(|member| {
-                crate::endpoints::v1::events::id::get::view::Member::new(
-                    member.user_id() as u64,
-                    member.validation_status().to_string().into(),
-                )
+            .map(|member| MemberView {
+                id: member.user_id() as u64,
+                validation_status: member.validation_status(),
             })
             .collect(),
-    ))
+        approval_status: access.approval_status,
+        permissions: EventPermissionsView {
+            can_edit: access.can_edit(),
+            can_delete: access.can_delete(),
+            can_validate: access.can_validate(),
+        },
+    })
 }
 
 #[utoipa::path(
     get,
     path = "",
+    summary = "Consulter le détail d'un événement",
+    description = "Renvoie un événement complet : description, visibilité, catégorie, lieu, \
+                   récurrence, participants avec leur statut de validation, statut d'approbation \
+                   global, et **droits de l'appelant** sur l'événement.\n\n\
+                   Le champ `permissions` évite de redériver les règles d'accès côté client : il \
+                   suffit de masquer les boutons dont le drapeau correspondant est `false`.\n\n\
+                   Réservé aux participants assignés : un événement existant auquel l'appelant \
+                   n'est pas assigné répond `403`, pas `404`.",
     params(
-        ("event_id" = u64, Path, description = "Event ID")
+        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21)
     ),
     responses(
-        (status = 200, description = "Event details", body = GetEventResultView),
-        (status = 400, description = "Bad request"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Détail de l'événement et droits de l'appelant.",
+            body = GetEventResultView,
+            example = json!({
+                "id": 21,
+                "name": "Conseil municipal",
+                "description": "Ordre du jour envoyé une semaine avant",
+                "events_start_time": "2026-10-05T18:00:00Z",
+                "events_end_time": "2026-10-05T20:00:00Z",
+                "visibility": "Public",
+                "category": "Meeting",
+                "service": "Secrétariat général",
+                "location": "Salle du conseil",
+                "recurrence": null,
+                "owner": 42,
+                "created_by": 42,
+                "members": [
+                    { "id": 42, "validation_status": "Validated" },
+                    { "id": 51, "validation_status": "Pending" }
+                ],
+                "approval_status": "Pending",
+                "permissions": { "can_edit": true, "can_delete": true, "can_validate": false }
+            })
+        ),
+        (
+            status = 400,
+            description = "Un segment de l'URL n'est pas un entier, ou le corps JSON est malformé.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Path deserialize error: can not parse `abc` to a u64")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'appelant n'est pas assigné à cet événement. Seuls ses participants peuvent le voir.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden.")
+        ),
+        (
+            status = 404,
+            description = "Aucun événement ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown event.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        ),
     ),
     tag = "Events",
     security(
@@ -107,10 +139,12 @@ async fn trigger_get_event(
 #[get("/")]
 pub async fn get_event(
     state: web::Data<AppState>,
-    _: AuthenticatedUser,
-    path_params: web::Path<u64>,
-) -> Result<impl Responder, GetEventError> {
-    let params = path_params.into_inner();
-    let calendar = trigger_get_event(state, params).await?;
-    Ok(HttpResponse::Ok().json(calendar))
+    auth_user: AuthenticatedUser,
+    event_id: web::Path<u64>,
+) -> Result<impl Responder, ApiError> {
+    let event_id = event_id.into_inner();
+    let access =
+        require_event_access(&state, event_id, auth_user.id, EventAccess::can_view).await?;
+    let event = load_event(&state, event_id, &access).await?;
+    Ok(HttpResponse::Ok().json(event))
 }

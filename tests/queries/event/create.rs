@@ -1,177 +1,89 @@
-use calendar_api::database::event::create::view::{
-    CreateEventByGroupQueryView, CreateEventByUserQueryView, ReccurenceType, RecurrenceRule,
+use crate::common::{create_event, event_input};
+use calendar_api::database::event::create::view::CreateEventQueryView;
+use calendar_api::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
+use calendar_api::database::event::model::{
+    EventCategory, EventRecurrence, EventVisibility, RecurrenceFrequency,
 };
-use chrono::{Duration, Utc};
+use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database};
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[test]
-fn test_recurrence_type_roundtrip_and_display() {
-    for (variant, s) in [
-        (ReccurenceType::Daily, "Daily"),
-        (ReccurenceType::Weekly, "Weekly"),
-        (ReccurenceType::Monthly, "Monthly"),
-        (ReccurenceType::Error, "Error"),
-    ] {
-        assert_eq!(variant.as_str(), s);
-        assert_eq!(format!("{variant}"), s);
-        assert_eq!(ReccurenceType::from(s.to_string()), variant);
-    }
-    assert_eq!(
-        ReccurenceType::from("nonsense".to_string()),
-        ReccurenceType::Error
-    );
-}
-
-#[test]
-fn test_recurrence_rule_getters_and_display() {
-    let end = Utc::now() + Duration::days(5);
-    let rule = RecurrenceRule::new(ReccurenceType::Weekly, Some(2), Some(end));
-
-    assert_eq!(*rule.type_recurrence(), ReccurenceType::Weekly);
-    assert_eq!(rule.intervalle(), Some(2));
-    assert_eq!(rule.date_fin(), Some(end));
-    assert!(format!("{rule}").contains("Weekly"));
-
-    let bare = RecurrenceRule::new(ReccurenceType::Daily, None, None);
-    assert_eq!(bare.intervalle(), None);
-    assert_eq!(bare.date_fin(), None);
-}
-
-#[test]
-fn test_create_by_user_view_getters_and_display() {
+fn test_create_view_params_and_display() {
     let start = Utc::now();
-    let end = start + Duration::days(1);
-    let view = CreateEventByUserQueryView::new("Party", Some("fun"), start, end, 3, None, 9);
-
-    assert_eq!(view.name(), "Party");
-    assert_eq!(view.description(), "fun");
-    assert_eq!(
-        view.start_date().timestamp_millis(),
-        start.timestamp_millis()
+    let view = CreateEventQueryView::new(
+        3,
+        &event_input("Party", Some("fun"), start, start + Duration::hours(1)),
     );
-    assert_eq!(view.end_date().timestamp_millis(), end.timestamp_millis());
-    assert_eq!(view.created_by(), 3);
-    assert_eq!(view.owner_id(), 9);
+
+    assert_eq!(view.creator_id(), 3);
+    assert_eq!(view.name(), "Party");
+    assert_eq!(view.query_params().len(), 14);
     assert!(view.query_sql().contains("INSERT INTO events"));
-    assert_eq!(view.query_params().len(), 6);
     assert!(format!("{view}").contains("Party"));
 }
 
-#[test]
-fn test_create_by_group_view_getters_and_display() {
+#[tokio::test]
+#[serial]
+async fn test_create_event_stores_metadata_without_recurrence() {
+    let (_container, host) = get_shared_db().await;
+    let db = Database::new(host).await;
+    let start = Utc.with_ymd_and_hms(2026, 10, 5, 9, 0, 0).unwrap();
+    let mut input = event_input(
+        "Conseil",
+        Some("Ordre du jour"),
+        start,
+        start + Duration::hours(2),
+    );
+    input.visibility = EventVisibility::Private;
+    input.category = EventCategory::Ceremony;
+    input.service = Some("Urbanisme".to_string());
+    input.location = Some("Salle du conseil".to_string());
+
+    let id = create_event(&db, 1, &input).await;
+    let event: GetEventQueryResultView = db.fetch_one(&GetEventQueryView::new(id)).await.unwrap();
+
+    assert_eq!(event.to_input(), input);
+    assert_eq!(event.created_by(), Some(1));
+    assert_eq!(event.owner_id(), Some(1));
+    assert_eq!(event.recurrence_id(), None);
+}
+
+#[tokio::test]
+#[serial]
+async fn test_create_event_with_weekly_recurrence() {
+    let (_container, host) = get_shared_db().await;
+    let db = Database::new(host).await;
+    let start = Utc.with_ymd_and_hms(2026, 9, 7, 8, 30, 0).unwrap();
+    let mut input = event_input("Point hebdo", None, start, start + Duration::minutes(45));
+    input.recurrence = Some(EventRecurrence {
+        frequency: RecurrenceFrequency::Weekly,
+        interval: 2,
+        days_of_week: Some(vec![1, 3]),
+        ends_on: Some(NaiveDate::from_ymd_opt(2026, 12, 18).unwrap()),
+    });
+
+    let id = create_event(&db, 1, &input).await;
+    let event: GetEventQueryResultView = db.fetch_one(&GetEventQueryView::new(id)).await.unwrap();
+
+    assert!(event.recurrence_id().is_some());
+    assert_eq!(event.to_input().recurrence, input.recurrence);
+}
+
+#[tokio::test]
+#[serial]
+async fn test_create_event_rejects_end_before_start() {
+    let (_container, host) = get_shared_db().await;
+    let db = Database::new(host).await;
     let start = Utc::now();
-    let end = start + Duration::days(1);
-    let view =
-        CreateEventByGroupQueryView::new("Team Event".to_string(), None, start, end, 4, None, 7);
 
-    assert_eq!(view.name(), "Team Event");
-    assert_eq!(view.description(), "");
-    assert_eq!(
-        view.start_date().timestamp_millis(),
-        start.timestamp_millis()
-    );
-    assert_eq!(view.end_date().timestamp_millis(), end.timestamp_millis());
-    assert_eq!(view.created_by(), 4);
-    assert_eq!(view.owner_id(), 7);
-    assert!(view.query_sql().contains("INSERT INTO events"));
-    assert_eq!(view.query_params().len(), 6);
-    assert!(format!("{view}").contains("Team Event"));
-}
+    let result = db
+        .fetch_scalar::<i32, _>(&CreateEventQueryView::new(
+            1,
+            &event_input("Inversé", None, start, start - Duration::hours(1)),
+        ))
+        .await;
 
-#[tokio::test]
-#[serial]
-async fn test_create_event_by_user_success() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-
-    let start_date = Utc::now();
-    let end_date = start_date + chrono::Duration::days(10);
-    let view = CreateEventByUserQueryView::new(
-        "Test Event",
-        Some("Description"),
-        start_date,
-        end_date,
-        1, // ID utilisateur admin (assure-toi qu'il existe en DB)
-        None,
-        1,
-    );
-
-    let result = db.fetch_scalar::<i32, _>(&view).await;
-
-    assert!(result.is_ok());
-    assert!(result.unwrap() > 0);
-}
-
-#[tokio::test]
-#[serial]
-async fn test_create_recurrent_event_by_user_success() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-
-    let start_date = Utc::now();
-    let end_date = start_date + chrono::Duration::days(10);
-    let view = CreateEventByUserQueryView::new(
-        "Test Event",
-        Some("Description"),
-        start_date,
-        end_date,
-        1,
-        Some(RecurrenceRule::new(ReccurenceType::Daily, Some(1), None)),
-        1,
-    );
-
-    let result = db.fetch_scalar::<i32, _>(&view).await;
-
-    assert!(result.is_ok());
-    assert!(result.unwrap() > 0);
-}
-
-#[tokio::test]
-#[serial]
-async fn test_create_event_by_group_success() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-
-    let start_date = Utc::now();
-    let end_date = start_date + chrono::Duration::days(10);
-    let view = CreateEventByGroupQueryView::new(
-        "Test Event".to_string(),
-        Some("Description".to_string()),
-        start_date,
-        end_date,
-        1,
-        None,
-        1,
-    );
-
-    let result = db.fetch_scalar::<i32, _>(&view).await;
-
-    assert!(result.is_ok());
-    assert!(result.unwrap() > 0);
-}
-
-#[tokio::test]
-#[serial]
-async fn test_create_recurrent_event_by_group() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-
-    let start_date = Utc::now();
-    let end_date = start_date + chrono::Duration::days(10);
-    let view = CreateEventByGroupQueryView::new(
-        "Test Event".to_string(),
-        Some("Description".to_string()),
-        start_date,
-        end_date,
-        1,
-        Some(RecurrenceRule::new(ReccurenceType::Daily, Some(1), None)),
-        1,
-    );
-
-    let result = db.fetch_scalar::<i32, _>(&view).await;
-
-    assert!(result.is_ok());
-    assert!(result.unwrap() > 0);
+    assert!(result.is_err());
 }

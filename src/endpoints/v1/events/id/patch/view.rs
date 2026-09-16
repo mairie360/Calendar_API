@@ -1,125 +1,79 @@
-use actix_web::web;
 use chrono::{DateTime, Utc};
-use utoipa::{IntoParams, ToSchema};
+use serde::{Deserialize, Deserializer};
+use utoipa::ToSchema;
 
-use crate::endpoints::v1::events::{id::patch::endpoint::PatchEventError, post::view::Visibility};
+use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, EventVisibility};
 
-#[derive(Debug, Clone, ToSchema, serde::Deserialize)]
-pub struct PatchEventParams {
-    pub id: Option<u64>,
-    pub reccurent: Option<bool>,
+/// Distingue un champ absent (`None`) d'un champ explicitement `null` (`Some(None)`).
+fn deserialize_present<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
-impl TryFrom<actix_web::web::Query<PatchEventParams>> for PatchEventParams {
-    type Error = PatchEventError;
-
-    fn try_from(params: actix_web::web::Query<PatchEventParams>) -> Result<Self, Self::Error> {
-        let params = params.into_inner();
-        if params.id.is_none() && params.reccurent.is_none() {
-            return Err(PatchEventError::BadParams);
-        }
-        Ok(params)
-    }
-}
-
-impl IntoParams for PatchEventParams {
-    fn into_params(
-        parameter_in_provider: impl Fn() -> Option<utoipa::openapi::path::ParameterIn>,
-    ) -> Vec<utoipa::openapi::path::Parameter> {
-        vec![
-            utoipa::openapi::path::ParameterBuilder::new()
-                .name("id")
-                .schema(Some(
-                    utoipa::openapi::ObjectBuilder::new()
-                        .schema_type(utoipa::openapi::schema::Type::Integer)
-                        .format(Some(utoipa::openapi::SchemaFormat::KnownFormat(
-                            utoipa::openapi::KnownFormat::Int64,
-                        ))),
-                ))
-                .required(utoipa::openapi::Required::True)
-                .parameter_in(parameter_in_provider().unwrap_or_default())
-                .build(),
-            utoipa::openapi::path::ParameterBuilder::new()
-                .name("reccurent")
-                .schema(Some(
-                    utoipa::openapi::ObjectBuilder::new()
-                        .schema_type(utoipa::openapi::schema::Type::Boolean),
-                ))
-                .required(utoipa::openapi::Required::False)
-                .parameter_in(parameter_in_provider().unwrap_or_default())
-                .build(),
-        ]
-    }
-}
-
-#[derive(Debug, Clone, ToSchema, serde::Deserialize)]
+/// Modification partielle : un champ absent est conservé ; `null` efface une valeur facultative.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, ToSchema)]
 pub struct PatchEventView {
-    name: Option<String>,
-    description: Option<String>,
-    #[schema(value_type = String, format = DateTime)]
-    event_start_time: Option<DateTime<Utc>>,
-    #[schema(value_type = String, format = DateTime)]
-    event_end_time: Option<DateTime<Utc>>,
-    intervalle: Option<u64>,
-    visibility: Option<Visibility>,
-    #[schema(value_type = String, format = DateTime)]
-    reccurence_end_date: Option<DateTime<Utc>>,
+    /// Nouvel intitulé. Absent pour ne pas y toucher. Non vide, au plus 255 caractères.
+    #[schema(min_length = 1, max_length = 255, example = "Conseil municipal")]
+    pub name: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_present")]
+    #[schema(value_type = Option<String>, nullable)]
+    pub description: Option<Option<String>>,
+    /// Nouveau début. Absent pour ne pas y toucher.
+    #[schema(value_type = Option<String>, format = DateTime, example = "2026-10-05T18:00:00Z")]
+    pub event_start_time: Option<DateTime<Utc>>,
+    /// Nouvelle fin. Doit rester strictement postérieure au début après modification.
+    #[schema(value_type = Option<String>, format = DateTime, example = "2026-10-05T20:00:00Z")]
+    pub event_end_time: Option<DateTime<Utc>>,
+    /// Nouvelle visibilité. Absente pour ne pas y toucher.
+    pub visibility: Option<EventVisibility>,
+    /// Nouvelle catégorie. Absente pour ne pas y toucher.
+    pub category: Option<EventCategory>,
+    #[serde(default, deserialize_with = "deserialize_present")]
+    #[schema(value_type = Option<String>, nullable)]
+    pub service: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_present")]
+    #[schema(value_type = Option<String>, nullable)]
+    pub location: Option<Option<String>>,
+    /// `null` retire la répétition.
+    #[serde(default, deserialize_with = "deserialize_present")]
+    #[schema(value_type = Option<EventRecurrence>, nullable)]
+    pub recurrence: Option<Option<EventRecurrence>>,
 }
 
 impl PatchEventView {
-    pub fn new(
-        name: Option<String>,
-        description: Option<String>,
-        event_start_time: Option<DateTime<Utc>>,
-        event_end_time: Option<DateTime<Utc>>,
-        intervalle: Option<u64>,
-        visibility: Option<Visibility>,
-        reccurence_end_date: Option<DateTime<Utc>>,
-    ) -> Self {
-        Self {
-            name,
-            description,
-            event_start_time,
-            event_end_time,
-            intervalle,
-            visibility,
-            reccurence_end_date,
+    /// Applique la modification à l'état courant de l'événement.
+    pub fn apply_to(self, mut input: EventInput) -> EventInput {
+        if let Some(name) = self.name {
+            input.name = name.trim().to_string();
         }
-    }
-
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_deref()
-    }
-
-    pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
-    }
-
-    pub fn event_start_time(&self) -> Option<&DateTime<Utc>> {
-        self.event_start_time.as_ref()
-    }
-
-    pub fn event_end_time(&self) -> Option<&DateTime<Utc>> {
-        self.event_end_time.as_ref()
-    }
-
-    pub fn intervalle(&self) -> Option<u64> {
-        self.intervalle
-    }
-
-    pub fn visibility(&self) -> Option<&Visibility> {
-        self.visibility.as_ref()
-    }
-
-    pub fn reccurence_end_date(&self) -> Option<&DateTime<Utc>> {
-        self.reccurence_end_date.as_ref()
-    }
-}
-
-impl TryFrom<web::Json<PatchEventView>> for PatchEventView {
-    type Error = PatchEventError;
-
-    fn try_from(params: web::Json<PatchEventView>) -> Result<PatchEventView, Self::Error> {
-        Ok(params.into_inner())
+        if let Some(description) = self.description {
+            input.description = description;
+        }
+        if let Some(start) = self.event_start_time {
+            input.start = start;
+        }
+        if let Some(end) = self.event_end_time {
+            input.end = end;
+        }
+        if let Some(visibility) = self.visibility {
+            input.visibility = visibility;
+        }
+        if let Some(category) = self.category {
+            input.category = category;
+        }
+        if let Some(service) = self.service {
+            input.service = service;
+        }
+        if let Some(location) = self.location {
+            input.location = location;
+        }
+        if let Some(recurrence) = self.recurrence {
+            input.recurrence = recurrence;
+        }
+        input
     }
 }

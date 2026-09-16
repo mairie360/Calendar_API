@@ -1,76 +1,76 @@
-use actix_web::http::StatusCode;
-use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
+use actix_web::{patch, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-use crate::endpoints::v1::events::id::patch::view::{PatchEventParams, PatchEventView};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum PatchEventError {
-    DatabaseError,
-    BadParams,
-    BadRequest,
-    UnknownEvent,
-}
-
-impl std::fmt::Display for PatchEventError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PatchEventError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
-            PatchEventError::BadParams => {
-                write!(f, "Bad params.")
-            }
-            PatchEventError::BadRequest => {
-                write!(f, "Bad request.")
-            }
-            PatchEventError::UnknownEvent => {
-                write!(f, "Unknown event.")
-            }
-        }
-    }
-}
-
-impl ResponseError for PatchEventError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            PatchEventError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            PatchEventError::BadParams => StatusCode::BAD_REQUEST,
-            PatchEventError::BadRequest => StatusCode::BAD_REQUEST,
-            PatchEventError::UnknownEvent => StatusCode::NOT_FOUND,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
-    }
-}
-
-async fn trigger_patch_event(
-    _state: web::Data<AppState>,
-    _user_id: u64,
-    _params: PatchEventParams,
-    _view: PatchEventView,
-) -> Result<(), PatchEventError> {
-    // TODO: implémenter la mise à jour d'un événement via la SmartDatabase.
-    Ok(())
-}
+use crate::database::event::access::view::EventAccess;
+use crate::database::event::edit::view::{DeleteOrphanRecurrenceQueryView, EditEventQueryView};
+use crate::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
+use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::v1::events::id::patch::view::PatchEventView;
+use crate::endpoints::v1::events::validate_event_input;
 
 #[utoipa::path(
     patch,
     path = "",
+    summary = "Modifier un événement",
+    description = "Met à jour partiellement un événement : un champ absent reste inchangé.\n\n\
+                   Les champs facultatifs distinguent l'absence du `null` : omettre `description`, \
+                   `service`, `location` ou `recurrence` conserve la valeur actuelle, les envoyer à \
+                   `null` l'efface. Retirer la récurrence de cette façon supprime aussi la règle \
+                   devenue orpheline.\n\n\
+                   Réservé au participant qui est créateur de l'événement, ou qui a le rôle \
+                   Responsable, Maire ou Admin. Les mêmes contrôles qu'à la création s'appliquent, \
+                   sur l'événement tel qu'il sera après modification.\n\n\
+                   La réponse a un corps vide.",
     params(
-        ("event_id" = u64, Path, description = "Event ID"),
-        ("reccurent" = bool, Query, description = "Whether the event is recurring")
+        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21)
+    ),
+    request_body(
+        content = PatchEventView,
+        description = "Champs à modifier. Tous facultatifs ; `null` efface une valeur facultative.",
+        example = json!({ "location": "Salle des mariages", "recurrence": null })
     ),
     responses(
-        (status = 200, description = "Event patched successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 404, description = "Event not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 204,
+            description = "Événement mis à jour. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, `event_id` non entier, ou événement invalide après modification : nom vide ou trop long, fin antérieure ou égale au début, `service` trop long, ou récurrence incohérente.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'appelant n'est pas un participant créateur de l'événement, ni Responsable, Maire ou Admin.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden.")
+        ),
+        (
+            status = 404,
+            description = "Aucun événement ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown event.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        ),
     ),
-    request_body = PatchEventView,
     tag = "Events",
     security(
         ("jwt" = [])
@@ -80,13 +80,33 @@ async fn trigger_patch_event(
 pub async fn patch_event(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
-    path_params: web::Query<PatchEventParams>,
+    event_id: web::Path<u64>,
     view: web::Json<PatchEventView>,
-) -> Result<impl Responder, PatchEventError> {
-    let param = path_params
-        .try_into()
-        .map_err(|_| PatchEventError::BadRequest)?;
-    let view = view.try_into().map_err(|_| PatchEventError::BadRequest)?;
-    trigger_patch_event(state, auth_user.id, param, view).await?;
-    Ok(HttpResponse::Ok().finish())
+) -> Result<impl Responder, ApiError> {
+    let event_id = event_id.into_inner();
+    require_event_access(&state, event_id, auth_user.id, EventAccess::can_edit).await?;
+
+    let db = state.get_smart_db();
+    let current: Vec<GetEventQueryResultView> = db
+        .fetch_all(&GetEventQueryView::new(event_id))
+        .await
+        .map_err(database_error)?;
+    let current = current.into_iter().next().ok_or(ApiError::NotFound)?;
+    let input = view.into_inner().apply_to(current.to_input());
+    validate_event_input(&input)?;
+
+    let updated: bool = db
+        .fetch_scalar(&EditEventQueryView::new(event_id, &input))
+        .await
+        .map_err(|_| ApiError::BadRequest)?;
+    if !updated {
+        return Err(ApiError::NotFound);
+    }
+    if let (Some(rule_id), None) = (current.recurrence_id(), &input.recurrence) {
+        db.execute(DeleteOrphanRecurrenceQueryView::new(rule_id as u64))
+            .await
+            .map_err(database_error)?;
+    }
+
+    Ok(HttpResponse::NoContent().finish())
 }

@@ -1,210 +1,58 @@
-use actix_web::web;
 use chrono::{DateTime, Utc};
 use utoipa::ToSchema;
 
-use crate::endpoints::v1::events::post::endpoint::PostEventError;
+use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, EventVisibility};
 
-#[derive(Debug, Clone, PartialEq, ToSchema, serde::Deserialize, serde::Serialize)]
-pub enum RecurrenceType {
-    Daily,
-    Weekly,
-    Monthly,
-    Error,
-}
-
-impl From<String> for RecurrenceType {
-    fn from(s: String) -> Self {
-        match s.as_str() {
-            "daily" => RecurrenceType::Daily,
-            "weekly" => RecurrenceType::Weekly,
-            "monthly" => RecurrenceType::Monthly,
-            _ => RecurrenceType::Error,
-        }
-    }
-}
-
-impl RecurrenceType {
-    pub fn to_string(&self) -> &str {
-        match self {
-            RecurrenceType::Daily => "daily",
-            RecurrenceType::Weekly => "weekly",
-            RecurrenceType::Monthly => "monthly",
-            RecurrenceType::Error => "",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, ToSchema, serde::Deserialize, serde::Serialize)]
-pub enum Visibility {
-    Public,
-    Private,
-    Error,
-}
-
-impl From<String> for Visibility {
-    fn from(s: String) -> Self {
-        match s.as_str() {
-            "public" => Visibility::Public,
-            "private" => Visibility::Private,
-            _ => Visibility::Error,
-        }
-    }
-}
-
-impl Visibility {
-    pub fn to_string(&self) -> &str {
-        match self {
-            Visibility::Public => "public",
-            Visibility::Private => "private",
-            Visibility::Error => "",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, ToSchema, serde::Deserialize, serde::Serialize)]
-pub struct Recurrence {
-    type_recurrence: RecurrenceType,
-    intervalle: u64,
-    #[schema(value_type = String, format = DateTime)]
-    recurrence_end_date: Option<DateTime<Utc>>,
-    name: String,
-    description: Option<String>,
-    visibility: Option<Visibility>,
-    owner_group_id: Option<u64>,
-}
-
-impl Recurrence {
-    pub fn new(
-        type_recurrence: RecurrenceType,
-        intervalle: u64,
-        recurrence_end_date: Option<DateTime<Utc>>,
-        name: String,
-        description: Option<String>,
-        visibility: Option<Visibility>,
-        owner_group_id: Option<u64>,
-    ) -> Self {
-        Self {
-            type_recurrence,
-            intervalle,
-            recurrence_end_date,
-            name,
-            description,
-            visibility,
-            owner_group_id,
-        }
-    }
-
-    pub fn type_recurrence(&self) -> &RecurrenceType {
-        &self.type_recurrence
-    }
-
-    pub fn intervalle(&self) -> u64 {
-        self.intervalle
-    }
-
-    pub fn recurrence_end_date(&self) -> &Option<DateTime<Utc>> {
-        &self.recurrence_end_date
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn description(&self) -> &Option<String> {
-        &self.description
-    }
-
-    pub fn visibility(&self) -> &Option<Visibility> {
-        &self.visibility
-    }
-
-    pub fn owner_group_id(&self) -> &Option<u64> {
-        &self.owner_group_id
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, ToSchema, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, ToSchema)]
 pub struct PostEventView {
-    recurrence: Option<Recurrence>,
-    #[schema(value_type = String, format = DateTime)]
-    events_start_time: DateTime<Utc>,
-    #[schema(value_type = String, format = DateTime)]
-    events_end_time: DateTime<Utc>,
-    custom_name: Option<String>,
-    custom_description: Option<String>,
-    custom_visibility: Option<Visibility>,
-    owner_group_id: Option<u64>,
+    /// Intitulé de l'événement. Non vide une fois les espaces de bord retirés, au plus
+    /// 255 caractères.
+    #[schema(min_length = 1, max_length = 255, example = "Conseil municipal")]
+    pub name: String,
+    /// Description libre, ou absente.
+    #[schema(example = "Ordre du jour envoyé une semaine avant")]
+    pub description: Option<String>,
+    /// Début de l'événement.
+    #[schema(value_type = String, format = DateTime, example = "2026-10-05T18:00:00Z")]
+    pub events_start_time: DateTime<Utc>,
+    /// Fin de l'événement. Doit être **strictement** postérieure au début.
+    #[schema(value_type = String, format = DateTime, example = "2026-10-05T20:00:00Z")]
+    pub events_end_time: DateTime<Utc>,
+    /// `Public` par défaut.
+    pub visibility: Option<EventVisibility>,
+    /// `other` par défaut.
+    pub category: Option<EventCategory>,
+    /// Service organisateur, au plus 255 caractères.
+    #[schema(max_length = 255, example = "Secrétariat général")]
+    pub service: Option<String>,
+    /// Lieu de l'événement.
+    #[schema(example = "Salle du conseil")]
+    pub location: Option<String>,
+    /// Règle de répétition. Absente pour un événement ponctuel. Doit être cohérente avec la date
+    /// de début, sans quoi la création échoue en `400`.
+    pub recurrence: Option<EventRecurrence>,
 }
 
-impl PostEventView {
-    pub fn new(
-        recurrence: Option<Recurrence>,
-        events_start_time: DateTime<Utc>,
-        events_end_time: DateTime<Utc>,
-        custom_name: Option<String>,
-        custom_description: Option<String>,
-        custom_visibility: Option<Visibility>,
-        owner_group_id: Option<u64>,
-    ) -> Self {
-        Self {
-            recurrence,
-            events_start_time,
-            events_end_time,
-            custom_name,
-            custom_description,
-            custom_visibility,
-            owner_group_id,
+impl From<PostEventView> for EventInput {
+    fn from(view: PostEventView) -> Self {
+        EventInput {
+            name: view.name.trim().to_string(),
+            description: view.description,
+            start: view.events_start_time,
+            end: view.events_end_time,
+            visibility: view.visibility.unwrap_or_default(),
+            category: view.category.unwrap_or_default(),
+            service: view.service,
+            location: view.location,
+            recurrence: view.recurrence,
         }
     }
-
-    pub fn recurrence(&self) -> &Option<Recurrence> {
-        &self.recurrence
-    }
-
-    pub fn events_start_time(&self) -> &DateTime<Utc> {
-        &self.events_start_time
-    }
-
-    pub fn events_end_time(&self) -> &DateTime<Utc> {
-        &self.events_end_time
-    }
-
-    pub fn custom_name(&self) -> Option<String> {
-        self.custom_name.clone()
-    }
-
-    pub fn custom_description(&self) -> &Option<String> {
-        &self.custom_description
-    }
-
-    pub fn custom_visibility(&self) -> &Option<Visibility> {
-        &self.custom_visibility
-    }
-
-    pub fn owner_group_id(&self) -> &Option<u64> {
-        &self.owner_group_id
-    }
 }
 
-impl TryFrom<web::Json<PostEventView>> for PostEventView {
-    type Error = PostEventError;
-
-    fn try_from(params: web::Json<PostEventView>) -> Result<PostEventView, Self::Error> {
-        Ok(params.into_inner())
-    }
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct PostEventResultView {
+    /// Identifiant attribué à l'événement créé. L'appelant en est le créateur, mais pas encore
+    /// un participant : s'assigner via `POST /api/v1/events/{event_id}/members/`.
+    #[schema(example = 21)]
     pub event_id: u64,
-}
-
-impl PostEventResultView {
-    pub fn new(event_id: u64) -> Self {
-        Self { event_id }
-    }
-
-    pub fn event_id(&self) -> &u64 {
-        &self.event_id
-    }
 }

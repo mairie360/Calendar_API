@@ -1,5 +1,6 @@
+use crate::common::event_input;
 use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
-use calendar_api::database::event::create::view::CreateEventByUserQueryView;
+use calendar_api::database::event::create::view::CreateEventQueryView;
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database};
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
@@ -42,7 +43,7 @@ async fn test_get_calendar_returns_owned_event() {
     let end = start + Duration::hours(2);
 
     let create =
-        CreateEventByUserQueryView::new("Calendar Event", Some("desc"), start, end, 1, None, 1);
+        CreateEventQueryView::new(1, &event_input("Calendar Event", Some("desc"), start, end));
     let id = db.fetch_scalar::<i32, _>(&create).await.unwrap();
 
     let view = GetCalendarQueryView::new(start - Duration::days(1), end + Duration::days(1), 1);
@@ -62,7 +63,7 @@ async fn test_get_calendar_excludes_out_of_window_event() {
     let start = Utc::now() + Duration::days(30);
     let end = start + Duration::hours(1);
 
-    let create = CreateEventByUserQueryView::new("Far Away", None, start, end, 1, None, 1);
+    let create = CreateEventQueryView::new(1, &event_input("Far Away", None, start, end));
     let id = db.fetch_scalar::<i32, _>(&create).await.unwrap();
 
     let view = GetCalendarQueryView::new(Utc::now() - Duration::days(1), Utc::now(), 1);

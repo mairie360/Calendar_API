@@ -1,6 +1,7 @@
+use crate::common::event_input;
 use calendar_api::database::event::{
     add_member::view::AddUserToEventQueryView,
-    create::view::CreateEventByUserQueryView,
+    create::view::CreateEventQueryView,
     get_event_members::view::{
         EventValidationStatus as MemberValidationStatus, GetEventMemberQueryView, Member,
     },
@@ -19,8 +20,10 @@ async fn test_update_user_status_success() {
 
     let start = Utc::now();
     let end = start + chrono::Duration::hours(1);
-    let view =
-        CreateEventByUserQueryView::new("Test Event", Some("Description"), start, end, 1, None, 1);
+    let view = CreateEventQueryView::new(
+        1,
+        &event_input("Test Event", Some("Description"), start, end),
+    );
     let id = db.fetch_scalar::<i32, _>(&view).await.unwrap() as u64;
 
     let view = AddUserToEventQueryView::new(2, id);

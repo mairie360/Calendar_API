@@ -1,106 +1,76 @@
 use chrono::{DateTime, Utc};
 use utoipa::ToSchema;
 
-use crate::{
-    database::event::get_event_members::view::EventValidationStatus,
-    endpoints::v1::events::post::view::Visibility,
-};
+use crate::database::event::access::view::ApprovalStatus;
+use crate::database::event::get_event_members::view::EventValidationStatus;
+use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, ToSchema)]
-pub enum MemberType {
-    Group,
-    User,
-    Error,
-}
-
-impl From<String> for MemberType {
-    fn from(s: String) -> Self {
-        match s.as_str() {
-            "group" => Self::Group,
-            "user" => Self::User,
-            _ => Self::Error,
-        }
-    }
-}
-
-impl MemberType {
-    pub fn to_string(&self) -> &str {
-        match self {
-            Self::Group => "group",
-            Self::User => "user",
-            Self::Error => "",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct Member {
-    id: u64,
-    // member_type: MemberType,
-    validation_status: EventValidationStatus,
+    /// Identifiant Core API du participant.
+    #[schema(example = 42)]
+    pub id: u64,
+    /// Statut de validation de ce participant, appliqué en bloc par
+    /// `PATCH /api/v1/events/{event_id}/validation`.
+    pub validation_status: EventValidationStatus,
 }
 
-impl Member {
-    // pub fn new(id: u64, member_type: MemberType, regular: bool) -> Self {
-    pub fn new(id: u64, validation_status: EventValidationStatus) -> Self {
-        Self {
-            id,
-            // member_type,
-            validation_status,
-        }
-    }
-
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-
-    // pub fn member_type(&self) -> &str {
-    //     self.member_type.to_string()
-    // }
-
-    pub fn validation_status(&self) -> EventValidationStatus {
-        self.validation_status
-    }
+/// Droits de l'appelant sur l'événement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
+pub struct EventPermissionsView {
+    /// L'appelant peut modifier l'événement : il en est le créateur assigné, ou il a le rôle
+    /// Responsable, Maire ou Admin.
+    #[schema(example = true)]
+    pub can_edit: bool,
+    /// L'appelant peut supprimer l'événement : il en est le créateur. Un Admin assigné peut
+    /// modifier sans pouvoir supprimer.
+    #[schema(example = true)]
+    pub can_delete: bool,
+    /// L'appelant peut valider l'événement : Responsable assigné, partageant un groupe avec le
+    /// créateur, sur un événement encore en attente.
+    #[schema(example = false)]
+    pub can_validate: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetEventResultView {
-    id: u64,
-    recurrence_id: Option<u64>,
-    #[schema(value_type = String, format = DateTime)]
-    events_start_time: DateTime<Utc>,
-    #[schema(value_type = String, format = DateTime)]
-    events_end_time: DateTime<Utc>,
-    name: String,
-    description: Option<String>,
-    visibility: Option<Visibility>,
-    owner: u64,
-    members: Vec<Member>,
-}
-
-impl GetEventResultView {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        id: u64,
-        recurrence_id: Option<u64>,
-        events_start_time: DateTime<Utc>,
-        events_end_time: DateTime<Utc>,
-        name: &str,
-        description: Option<&str>,
-        visibility: Option<Visibility>,
-        owner: u64,
-        members: Vec<Member>,
-    ) -> Self {
-        Self {
-            id,
-            recurrence_id,
-            events_start_time,
-            events_end_time,
-            name: name.to_string(),
-            description: description.map(|d| d.to_string()),
-            visibility,
-            owner,
-            members,
-        }
-    }
+    /// Identifiant de l'événement.
+    #[schema(example = 21)]
+    pub id: u64,
+    /// Intitulé de l'événement.
+    #[schema(example = "Conseil municipal")]
+    pub name: String,
+    /// Description libre, ou `null`.
+    #[schema(example = "Ordre du jour envoyé une semaine avant")]
+    pub description: Option<String>,
+    /// Début de l'événement.
+    #[schema(value_type = String, format = DateTime, example = "2026-10-05T18:00:00Z")]
+    pub events_start_time: DateTime<Utc>,
+    /// Fin de l'événement.
+    #[schema(value_type = String, format = DateTime, example = "2026-10-05T20:00:00Z")]
+    pub events_end_time: DateTime<Utc>,
+    /// Visibilité de l'événement.
+    pub visibility: EventVisibility,
+    /// Catégorie de l'événement.
+    pub category: EventCategory,
+    /// Service organisateur, ou `null`.
+    #[schema(example = "Secrétariat général")]
+    pub service: Option<String>,
+    /// Lieu, ou `null`.
+    #[schema(example = "Salle du conseil")]
+    pub location: Option<String>,
+    /// Règle de répétition, ou `null` pour un événement ponctuel.
+    pub recurrence: Option<EventRecurrence>,
+    /// Identifiant Core API du propriétaire, ou `null`.
+    #[schema(example = 42)]
+    pub owner: Option<u64>,
+    /// Identifiant Core API du créateur : le seul à pouvoir supprimer l'événement.
+    #[schema(example = 42)]
+    pub created_by: Option<u64>,
+    /// Participants assignés et leur statut de validation individuel.
+    pub members: Vec<Member>,
+    /// Statut de validation global de l'événement.
+    pub approval_status: ApprovalStatus,
+    /// Droits de l'appelant sur cet événement, à consommer tels quels côté client.
+    pub permissions: EventPermissionsView,
 }
