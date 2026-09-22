@@ -60,7 +60,8 @@ API, port 3002), `postgres` (via `ghcr.io/mairie360/database`), `liquibase` (app
 
 `main.rs` reads these via `get_critical_env_var` (the process **panics** if any is missing):
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `HOST`, `PORT`.
-The Postgres URL is assembled from the `DB_*` parts. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
+The Postgres URL is assembled from the `DB_*` parts by `database::pg_url::build_pg_url`, which
+percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
 by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
