@@ -35,10 +35,10 @@ use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
                         "start": "2026-10-05T18:00:00Z",
                         "end": "2026-10-05T20:00:00Z",
                         "is_member": true,
-                        "category": "Meeting",
+                        "category": "meeting",
                         "service": "Secrétariat général",
                         "location": "Salle du conseil",
-                        "recurrence": { "frequency": "Monthly", "interval": 1, "days_of_week": null, "ends_on": "2027-06-30" }
+                        "recurrence": { "frequency": "monthly", "interval": 1, "days_of_week": null, "ends_on": "2027-06-30" }
                     }
                 ]
             })

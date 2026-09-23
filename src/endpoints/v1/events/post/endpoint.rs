@@ -18,10 +18,11 @@ use crate::endpoints::v1::events::validate_event_input;
                    assigné via `POST /api/v1/events/{event_id}/members/`, l'événement n'apparaît \
                    pas dans son `GET /api/v1/calendar` et il ne peut pas lire son détail. Il peut \
                    en revanche déjà gérer ses participants, en tant que créateur.\n\n\
-                   Contrôles appliqués : nom non vide et d'au plus 255 caractères, \
-                   `events_end_time` strictement postérieure à `events_start_time`, `service` d'au \
-                   plus 255 caractères, et règle de répétition cohérente avec la date de début. \
-                   Tous partagent le même `400`.\n\n\
+                   Checks applied: `name` not blank and at most 150 characters, `service` at \
+                   most 128 characters, `location` at most 255 characters (none of them with \
+                   control characters or `<` / `>`), `description` at most 5000 characters \
+                   without `<` / `>`, `events_end_time` strictly after `events_start_time`, and a \
+                   recurrence rule consistent with the start date. They all share the same `400`.\n\n\
                    La réponse ne contient que l'identifiant attribué.",
     request_body(
         content = PostEventView,
@@ -32,10 +33,10 @@ use crate::endpoints::v1::events::validate_event_input;
             "events_start_time": "2026-10-05T18:00:00Z",
             "events_end_time": "2026-10-05T20:00:00Z",
             "visibility": "Public",
-            "category": "Meeting",
+            "category": "meeting",
             "service": "Secrétariat général",
             "location": "Salle du conseil",
-            "recurrence": { "frequency": "Monthly", "interval": 1, "days_of_week": null, "ends_on": "2027-06-30" }
+            "recurrence": { "frequency": "monthly", "interval": 1, "days_of_week": null, "ends_on": "2027-06-30" }
         })
     ),
     responses(
@@ -47,7 +48,7 @@ use crate::endpoints::v1::events::validate_event_input;
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, nom vide ou de plus de 255 caractères, fin antérieure ou égale au début, `service` trop long, ou règle de répétition incohérente avec la date de début.",
+            description = "Malformed JSON body, end not after start, recurrence rule inconsistent with the start date, or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters nor `<` / `>`; `description` at most 5000 characters, no `<` / `>`, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
             example = json!("Bad request.")

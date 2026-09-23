@@ -81,17 +81,17 @@ pub async fn load_event(
                 "events_start_time": "2026-10-05T18:00:00Z",
                 "events_end_time": "2026-10-05T20:00:00Z",
                 "visibility": "Public",
-                "category": "Meeting",
+                "category": "meeting",
                 "service": "Secrétariat général",
                 "location": "Salle du conseil",
                 "recurrence": null,
                 "owner": 42,
                 "created_by": 42,
                 "members": [
-                    { "id": 42, "validation_status": "Validated" },
-                    { "id": 51, "validation_status": "Pending" }
+                    { "id": 42, "validation_status": "validated" },
+                    { "id": 51, "validation_status": "pending" }
                 ],
-                "approval_status": "Pending",
+                "approval_status": "pending",
                 "permissions": { "can_edit": true, "can_delete": true, "can_validate": false }
             })
         ),

@@ -49,6 +49,15 @@ Both `openapi.*` and `generated/` are gitignored.
 (OWASP ZAP scan, `docker-compose-security.yml`) spin up a throwaway stack, run, and tear down. They are what
 CI runs on `main` after the dev release, not part of `cargo test`; they need Docker and GHCR pull access.
 
+The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
+`JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
+service (`init-test.sql`: plain `User` account 2, user 1 is the Admin created by liquibase) and fails on any alert
+not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://calendar:3002` is required: the spec's
+`servers` are unreachable from the ZAP container. Keep `rules.tsv` identical in every API. ZAP builds its requests
+from the spec examples, so an example that does not deserialize (e.g. an enum in the wrong case) leaves the route
+fuzzed only on its `400`. Every text field goes through `validate_event_input` (length matching the column, no
+control character, no `<` / `>`): a `500` or a `<script>` echoed back fails the job.
+
 `tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
 `tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
 committed default (`http://localhost:3002`) stays usable from a host shell. There is no login route here, so the
