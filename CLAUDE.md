@@ -49,6 +49,11 @@ Both `openapi.*` and `generated/` are gitignored.
 (OWASP ZAP scan, `docker-compose-security.yml`) spin up a throwaway stack, run, and tear down. They are what
 CI runs on `main` after the dev release, not part of `cargo test`; they need Docker and GHCR pull access.
 
+The service under test in these three stacks is `image: ${IMAGE_REF}` (no `build:` block). CI sets `IMAGE_REF` to the
+published `ghcr.io/mairie360/calendar-api:dev-<sha>` image; when it is empty the scripts build `calendar-api:local` from
+`development.Dockerfile` first. That image is distroless (no shell, no curl), so readiness is a `calendar-ready` sidecar
+polling `/health`, and dependent services wait for it with `service_completed_successfully`.
+
 The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
 `JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
 service (`init-test.sql`: plain `User` account 2, user 1 is the Admin created by liquibase) and fails on any alert
@@ -170,6 +175,7 @@ Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates event
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the shared `mairie360/CICD` reusable workflow
-(fmt check, clippy `-D warnings`, tests, newman integration tests via `./integration_test.sh`, Docker image publish as
+(fmt check, clippy `-D warnings`, tests, the three `*_test.sh` stacks run against the published `dev-<sha>` image
+through `IMAGE_REF`, Docker image publish as
 `calendar-api`). Renovate PRs are auto-approved (`.github/workflows/auto-approve.yml`);
 `renovate.json` extends `github>mairie360/renovace`.

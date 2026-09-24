@@ -1,7 +1,6 @@
 volumes:
   postgres-data:
   redis-data:
-  calendar-target:
 
 networks:
   backend:
@@ -112,24 +111,12 @@ services:
 
   calendar: # change api name
     container_name: calendar_api-developpement # change api name
-    build:
-      context: .
-      dockerfile: development.Dockerfile
-    develop:
-      watch:
-        - action: sync
-          path: ./src
-          target: /usr/src/calendar/src #change api name
-        - action: sync
-          path: ./Cargo.toml
-          target: /usr/src/calendar/Cargo.toml #change api name
-        - action: sync
-          path: ./Cargo.lock
-          target: /usr/src/calendar/Cargo.lock #change api name
+    # The API under test: the published ghcr.io/mairie360/calendar-api:dev-<sha> image in CI, or
+    # calendar-api:local built by the *_test.sh script from development.Dockerfile. No build: block,
+    # so CI tests the artifact that gets promoted instead of recompiling the sources.
+    image: ${IMAGE_REF:?IMAGE_REF must name the API image under test, run the matching *_test.sh script}
     ports:
       - "3002:3002" #change port
-    volumes:
-      - calendar-target:/usr/src/calendar/target #change api name
     networks:
       - backend
     dns:
@@ -145,12 +132,20 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://calendar:3002/health"] # change api name and port
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 90s
+
+  # The published image is distroless (no shell, no curl), so the API cannot carry its own
+  # healthcheck: this sidecar polls /health and the services that need the API wait for it to
+  # complete instead.
+  calendar-ready:
+    image: curlimages/curl:latest
+    depends_on:
+      calendar:
+        condition: service_started
+    command: >
+      sh -c 'until curl -fsS http://calendar:3002/health >/dev/null; do
+      echo "waiting for calendar..."; sleep 2; done; echo "calendar ready"'
+    networks:
+      - backend
 
   k6-perf-test:
     image: grafana/k6:latest
@@ -162,5 +157,5 @@ services:
     environment:
       - BASE_URL=http://calendar:3002
     depends_on:
-      calendar:
-        condition: service_healthy
+      calendar-ready:
+        condition: service_completed_successfully
