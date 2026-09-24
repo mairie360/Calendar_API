@@ -3,10 +3,9 @@ use calendar_api::endpoints::config;
 use calendar_api::endpoints::swagger::ApiDoc;
 use utoipa::OpenApi;
 
-// Chaque opération publiée dans le contrat OpenAPI (celui dont est généré @mairie360/calendar-api-openapi, chemins
-// relatifs à /api)
-// doit correspondre à une route actix réellement montée. Aucune base ni JWT n'est nécessaire : une route
-// absente tombe sur le service par défaut (418), une route trouvée échoue plus loin (données, JWT, corps).
+// Every operation published in the OpenAPI contract (the one @mairie360/calendar-api-openapi is generated
+// from) must hit an actix route that is really mounted. No database nor JWT is needed: a missing route
+// falls through to the default service (418), a routed one fails further on (data, JWT, body).
 #[actix_web::test]
 async fn every_published_operation_is_routed() {
     let app = test::init_service(
@@ -16,13 +15,17 @@ async fn every_published_operation_is_routed() {
     )
     .await;
 
-    let document = serde_json::to_value(ApiDoc::openapi()).expect("contrat OpenAPI sérialisable");
+    let document = serde_json::to_value(ApiDoc::openapi()).expect("serializable OpenAPI contract");
     let paths = document["paths"].as_object().expect("paths");
+    let mut checked = 0;
     let mut unrouted = Vec::new();
 
-    for (template, operations) in paths.iter().filter(|(path, _)| path.starts_with("/v1/")) {
+    for (template, operations) in paths
+        .iter()
+        .filter(|(path, _)| path.starts_with("/api/v1/"))
+    {
         if template.contains("//") {
-            unrouted.push(format!("segment vide dans {template}"));
+            unrouted.push(format!("empty segment in {template}"));
         }
         let uri = template
             .split('/')
@@ -35,25 +38,25 @@ async fn every_published_operation_is_routed() {
             })
             .collect::<Vec<_>>()
             .join("/");
-        // Les chemins publiés sont relatifs au préfixe /api (inclus dans l'URL de base des clients).
-        let uri = format!("/api{uri}");
 
-        for method in operations.as_object().expect("opérations").keys() {
-            let method =
-                Method::from_bytes(method.to_uppercase().as_bytes()).expect("méthode HTTP");
+        for method in operations.as_object().expect("operations").keys() {
+            let method = Method::from_bytes(method.to_uppercase().as_bytes()).expect("HTTP method");
             let request = test::TestRequest::default()
                 .method(method.clone())
                 .uri(&uri)
                 .to_request();
             let response = test::call_service(&app, request).await;
+            checked += 1;
             if response.status().as_u16() == 418 {
                 unrouted.push(format!("{method} {template}"));
             }
         }
     }
 
+    // Guards the filter above: a wrong prefix would otherwise make the test pass on nothing.
+    assert!(checked > 0, "no /api/v1 operation found in the contract");
     assert!(
         unrouted.is_empty(),
-        "opérations publiées sans route actix : {unrouted:?}"
+        "published operations without an actix route: {unrouted:?}"
     );
 }
