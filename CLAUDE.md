@@ -156,3 +156,7 @@ Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates event
 (fmt check, clippy `-D warnings`, tests, Postman collection run, Docker image publish as
 `calendar-api`). Renovate PRs are auto-approved (`.github/workflows/auto-approve.yml`);
 `renovate.json` extends `github>mairie360/renovace`.
+
+## Pull request reviewers
+
+Every PR requests a review from the whole team, minus its author: `CarolinHugo`, `LAURETbenjamin`, `MathTek` and `Quentintnrl` (`gh pr create … --reviewer CarolinHugo,LAURETbenjamin,MathTek`). `.github/CODEOWNERS` makes GitHub request them automatically as well.
