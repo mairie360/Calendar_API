@@ -54,7 +54,7 @@ The referenced compose files are not checked in — these are ops helpers, not p
 API, port 3002), `postgres` (via `ghcr.io/mairie360/database`), `liquibase` (applies DB migrations —
 **schema is not defined in this repo**), `seeder` (`init-test.sql`), `redis`, and `nginx`
 (reverse proxy at `calendar.development.mairie360.fr`). `development.Dockerfile` runs
-`cargo watch`; `Dockerfile` is the release build into a distroless image.
+`cargo watch`; `Dockerfile` is the release build into a distroless `:nonroot` image (uid 65532, guarded by `tests/dockerfile_test.rs`).
 
 ## Required environment variables
 
