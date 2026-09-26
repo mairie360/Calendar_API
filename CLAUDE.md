@@ -56,12 +56,26 @@ polling `/health`, and dependent services wait for it with `service_completed_su
 
 The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
 `JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
-service (`init-test.sql`: plain `User` account 2, user 1 is the Admin created by liquibase) and fails on any alert
+service (`init-test.sql`: plain `User` account 2, `Responsable` 3, user 1 is the Admin created by liquibase) and fails on any alert
 not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://calendar:3002` is required: the spec's
 `servers` are unreachable from the ZAP container. Keep `rules.tsv` identical in every API. ZAP builds its requests
 from the spec examples, so an example that does not deserialize (e.g. an enum in the wrong case) leaves the route
 fuzzed only on its `400`. Every text field goes through `validate_event_input` (length matching the column, no
 control character, no `<` / `>`): a `500` or a `<script>` echoed back fails the job.
+
+Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairie360/CICD `tests/`, available as
+`cicd-repo/` (checked out by CI, cloned by the scripts at the pinned `cicd_version` otherwise, override with
+`CICD_VERSION`; gitignored). ZAP runs with `--hook zap_hooks.py` and fails when an operation of the served spec was
+never reached, or when an operation declaring `security(("jwt" = []))` only got 401/403. `load-test.js` is built on
+`coverage.js` and covers every operation (MAIR-195): GET handlers run in the `reads` scenario (20 VUs) against an
+event created in `setup()`, the other methods in the `writes` scenario (2 VUs), each handler creating and deleting
+its own event so they are order-independent. The script forges its HS256 JWTs (same secret as the stack): the
+validation circuit needs an event created by user 2 (`User`) with user 3 (`Responsable`, sharing group 1000 with
+user 2, both from `init-test.sql`) assigned, then approved by user 3. One `p(95)` threshold per `op` tag (200 ms
+reads, 500 ms writes) and `http_req_failed < 1%`. The spec k6 reads is the one served by the image under test,
+saved into the `openapi-spec` volume by `calendar-ready`. **Adding an endpoint = adding its handler in
+`load-test.js`** (k6 aborts at init otherwise), nothing to do for ZAP. `init-test.sql` also seeds the rows of the
+spec's path examples (event 21 with user 51 assigned) so ZAP reaches real rows.
 
 `tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
 `tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
