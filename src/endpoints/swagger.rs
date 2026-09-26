@@ -36,18 +36,18 @@ assigné répond `403`, et non `404`, qui est réservé aux identifiants inexist
 Le champ `permissions` de `GET /api/v1/events/{event_id}/` donne directement ces droits pour \
 l'appelant, ce qui évite de les redériver côté client.
 
-## Format des erreurs
+## Error format
 
-Les réponses d'erreur (`4xx` et `5xx`) ont un corps **`text/plain`** contenant le message \
-d'erreur, et non un objet JSON.
+Error responses (`4xx` and `5xx`) have a **`text/plain`** body holding the error message, not a \
+JSON object. Every response carries `X-Content-Type-Options: nosniff`.
 
-Statuts renvoyés de façon transverse, avant même d'atteindre le handler :
+Statuses returned across the API, before the handler runs:
 
-| Statut | Signification |
+| Status | Meaning |
 | --- | --- |
-| `400 Bad Request` | Segment d'URL qui n'est pas un entier, paramètre de requête absent ou mal formé, ou corps JSON malformé. |
-| `401 Unauthorized` | En-tête `Authorization` absent, malformé, JWT invalide ou expiré, ou session révoquée. |
-| `500 Internal Server Error` | Panne de la base de données ou de Redis. |
+| `400` | URL segment that is not an integer, missing or malformed query parameter, or malformed JSON body. |
+| `401` | `Authorization` header missing or malformed, invalid or expired JWT, or revoked session. |
+| `500` | Database or Redis failure. |
 ",
         contact(
             name = "Équipe Mairie 360",

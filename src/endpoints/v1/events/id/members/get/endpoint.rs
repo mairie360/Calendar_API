@@ -28,8 +28,8 @@ use crate::endpoints::v1::events::id::members::get::view::GetMembersResultView;
             body = GetMembersResultView,
             example = json!({
                 "members": [
-                    { "id": 42, "validation_status": "Validated" },
-                    { "id": 51, "validation_status": "Pending" }
+                    { "id": 42, "validation_status": "validated" },
+                    { "id": 51, "validation_status": "pending" }
                 ]
             })
         ),

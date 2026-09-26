@@ -28,7 +28,7 @@ use crate::endpoints::v1::events::id::validation::view::UpdateEventValidationVie
     request_body(
         content = UpdateEventValidationView,
         description = "Statut à appliquer à tous les participants.",
-        example = json!({ "status": "Approved" })
+        example = json!({ "status": "approved" })
     ),
     responses(
         (

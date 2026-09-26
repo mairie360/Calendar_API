@@ -37,7 +37,7 @@ use crate::endpoints::v1::events::validate_event_input;
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, `event_id` non entier, ou événement invalide après modification : nom vide ou trop long, fin antérieure ou égale au début, `service` trop long, ou récurrence incohérente.",
+            description = "Malformed JSON body, `event_id` not an integer, or event invalid once updated: end not after start, inconsistent recurrence, or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters nor `<` / `>`; `description` at most 5000 characters, no `<` / `>`, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
             example = json!("Bad request.")
