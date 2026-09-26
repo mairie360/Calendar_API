@@ -62,13 +62,14 @@ its own event and deletes it at the end, so it is replayable against a persisten
 API, port 3002), `postgres` (via `ghcr.io/mairie360/database`), `liquibase` (applies DB migrations —
 **schema is not defined in this repo**), `seeder` (`init-test.sql`), `redis`, and `nginx`
 (reverse proxy at `calendar.development.mairie360.fr`). `development.Dockerfile` runs
-`cargo watch`; `Dockerfile` is the release build into a distroless image.
+`cargo watch`; `Dockerfile` is the release build into a distroless `:nonroot` image (uid 65532, guarded by `tests/dockerfile_test.rs`).
 
 ## Required environment variables
 
 `main.rs` reads these via `get_critical_env_var` (the process **panics** if any is missing):
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `HOST`, `PORT`.
-The Postgres URL is assembled from the `DB_*` parts. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
+The Postgres URL is assembled from the `DB_*` parts by `database::pg_url::build_pg_url`, which
+percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
 by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
@@ -164,3 +165,7 @@ Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates event
 (fmt check, clippy `-D warnings`, tests, newman integration tests via `./integration_test.sh`, Docker image publish as
 `calendar-api`). Renovate PRs are auto-approved (`.github/workflows/auto-approve.yml`);
 `renovate.json` extends `github>mairie360/renovace`.
+
+## Pull request reviewers
+
+Every PR requests a review from the whole team, minus its author: `CarolinHugo`, `LAURETbenjamin`, `MathTek` and `Quentintnrl` (`gh pr create … --reviewer CarolinHugo,LAURETbenjamin,MathTek`). `.github/CODEOWNERS` makes GitHub request them automatically as well.
