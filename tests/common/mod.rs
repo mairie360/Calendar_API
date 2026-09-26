@@ -56,6 +56,10 @@ fn fixture(sql: String) -> FixtureSql {
     }
 }
 
+/// Dummy argon2id PHC string: the users table only accepts hashed passwords (`chk_users_password_hashed`).
+const TEST_PASSWORD_HASH: &str =
+    "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHRzb21lc2FsdA$c29tZWhhc2hzb21laGFzaHNvbWVoYXNoc29tZWhhc2g";
+
 fn unique_suffix() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
@@ -65,12 +69,12 @@ fn unique_suffix() -> String {
     format!("{nanos}{}", COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Crée un utilisateur (avec un rôle si `role` est fourni) et renvoie son identifiant.
+/// Creates a user (with a role when `role` is given) and returns its id.
 pub async fn create_user(db: &Database, first_name: &str, role: Option<&str>) -> u64 {
     let id: i32 = db
         .fetch_scalar(&fixture(format!(
             "INSERT INTO users (first_name, last_name, email, password) \
-             VALUES ('{first_name}', 'Test', '{}.{}@calendar-api.test', 'password') RETURNING id",
+             VALUES ('{first_name}', 'Test', '{}.{}@calendar-api.test', '{TEST_PASSWORD_HASH}') RETURNING id",
             first_name.to_lowercase(),
             unique_suffix()
         )))
