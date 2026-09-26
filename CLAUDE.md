@@ -44,9 +44,17 @@ OpenAPI client generation (TypeScript, for consumers): `npx orval` reads `openap
 `orval.config.js` and writes `generated/`. Regenerate `openapi.json` with `cargo open_api` first.
 Both `openapi.*` and `generated/` are gitignored.
 
+`./integration_test.sh` (newman replay of `tests/postman/collection.json`, `docker-compose-integration.yml`),
 `./performance_test.sh` (k6 load test, `docker-compose-performance.yml`) and `./security_test.sh`
-(OWASP ZAP scan, `docker-compose-security.yml`) spin up a throwaway stack, run, and tear down.
-The referenced compose files are not checked in — these are ops helpers, not part of `cargo test`.
+(OWASP ZAP scan, `docker-compose-security.yml`) spin up a throwaway stack, run, and tear down. They are what
+CI runs on `main` after the dev release, not part of `cargo test`; they need Docker and GHCR pull access.
+
+`tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
+`tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
+committed default (`http://localhost:3002`) stays usable from a host shell. There is no login route here, so the
+collection pre-request script forges the HS256 JWTs itself (claims `sub`/`role`/`exp`, signed with the stack's
+`JWT_SECRET`) for the seeded Admin (user 1) and a plain user (user 2, from `init-test.sql`). The scenario creates
+its own event and deletes it at the end, so it is replayable against a persistent database.
 
 ### Running the full stack
 
@@ -154,7 +162,7 @@ Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates event
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the shared `mairie360/CICD` reusable workflow
-(fmt check, clippy `-D warnings`, tests, Postman collection run, Docker image publish as
+(fmt check, clippy `-D warnings`, tests, newman integration tests via `./integration_test.sh`, Docker image publish as
 `calendar-api`). Renovate PRs are auto-approved (`.github/workflows/auto-approve.yml`);
 `renovate.json` extends `github>mairie360/renovace`.
 

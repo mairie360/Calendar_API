@@ -1,0 +1,1775 @@
+{
+  "info": {
+    "name": "Calendar API integration tests",
+    "description": "End-to-end smoke tests replayed by newman in CI (MAIR-117). `baseUrl` is injected by docker-compose-integration.yml; the default in environment.json targets a local stack. JWTs are forged in the collection pre-request script with the stack's JWT_SECRET for the seeded Admin (user 1) and a plain user (user 2, seeded by init-test.sql). The scenario creates an event, manages its participants from both roles, reads the calendar, then deletes the event, so it is replayable against a persistent database.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// The API has no login route: JWTs are forged here exactly like mairie360_api_lib::jwt_manager",
+          "// does (HS256, claims { sub, role, exp }), signed with the JWT_SECRET of the compose stack.",
+          "const cryptoJs = require('crypto-js');",
+          "const b64url = (words) => cryptoJs.enc.Base64.stringify(words).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+          "const sign = (userId, secret, ttlSeconds) => {",
+          "    const header = b64url(cryptoJs.enc.Utf8.parse(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));",
+          "    const exp = Math.floor(Date.now() / 1000) + ttlSeconds;",
+          "    const payload = b64url(cryptoJs.enc.Utf8.parse(JSON.stringify({ sub: String(userId), role: '', exp })));",
+          "    return `${header}.${payload}.${b64url(cryptoJs.HmacSHA256(`${header}.${payload}`, secret))}`;",
+          "};",
+          "const secret = pm.environment.get('jwt_secret');",
+          "pm.environment.set('jwt_admin', sign(pm.environment.get('admin_user_id'), secret, 3600));",
+          "pm.environment.set('jwt_agent', sign(pm.environment.get('agent_user_id'), secret, 3600));",
+          "pm.environment.set('jwt_forged', sign(pm.environment.get('admin_user_id'), 'not-the-secret', 3600));",
+          "pm.environment.set('jwt_expired', sign(pm.environment.get('admin_user_id'), secret, -3600));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Service",
+      "item": [
+        {
+          "name": "Hello",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Body matches the expected text\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"Hello, world!\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Body matches the expected text\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"OK\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "OpenAPI document",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api-docs/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api-docs",
+                "openapi.json"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Document is an OpenAPI spec with paths\", function () {",
+                  "    const doc = pm.response.json();",
+                  "    pm.expect(doc.openapi).to.be.a(\"string\");",
+                  "    pm.expect(doc.paths).to.be.an(\"object\");",
+                  "    pm.expect(Object.keys(doc.paths)).to.include(\"/api/v1/events/\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Protected route without JWT is rejected",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "JWT signed with another secret is rejected",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_forged}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Expired JWT is rejected",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_expired}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Valid JWT is accepted",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Create an event with an empty name is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"description\": \"Ordre du jour envoyé une semaine avant\",\n  \"events_start_time\": \"2026-10-05T18:00:00Z\",\n  \"events_end_time\": \"2026-10-05T20:00:00Z\",\n  \"visibility\": \"Public\",\n  \"category\": \"meeting\",\n  \"service\": \"Secrétariat général\",\n  \"location\": \"Salle du conseil\",\n  \"recurrence\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create an event ending before it starts is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Conseil municipal (newman)\",\n  \"description\": \"Ordre du jour envoyé une semaine avant\",\n  \"events_start_time\": \"2026-10-05T18:00:00Z\",\n  \"events_end_time\": \"2026-10-05T17:00:00Z\",\n  \"visibility\": \"Public\",\n  \"category\": \"meeting\",\n  \"service\": \"Secrétariat général\",\n  \"location\": \"Salle du conseil\",\n  \"recurrence\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create an event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Conseil municipal (newman)\",\n  \"description\": \"Ordre du jour envoyé une semaine avant\",\n  \"events_start_time\": \"2026-10-05T18:00:00Z\",\n  \"events_end_time\": \"2026-10-05T20:00:00Z\",\n  \"visibility\": \"Public\",\n  \"category\": \"meeting\",\n  \"service\": \"Secrétariat général\",\n  \"location\": \"Salle du conseil\",\n  \"recurrence\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Body carries the new event id\", function () {",
+                  "    const id = pm.response.json().event_id;",
+                  "    pm.expect(id).to.be.a(\"number\").above(0);",
+                  "    pm.environment.set(\"event_id\", String(id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Creator is not yet a participant",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Unknown event answers 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/999999999/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "999999999",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Participants",
+      "item": [
+        {
+          "name": "Assign the creator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{admin_user_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// user_id must be a JSON number, not a string.",
+                  "pm.request.body.raw = JSON.stringify({ user_id: Number(pm.environment.get('admin_user_id')) });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Assign the plain user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{agent_user_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// user_id must be a JSON number, not a string.",
+                  "pm.request.body.raw = JSON.stringify({ user_id: Number(pm.environment.get('agent_user_id')) });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Assigning the same user twice is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{agent_user_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// user_id must be a JSON number, not a string.",
+                  "pm.request.body.raw = JSON.stringify({ user_id: Number(pm.environment.get('agent_user_id')) });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Assigning without user_id is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List the participants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Both participants are listed with a validation status\", function () {",
+                  "    const members = pm.response.json().members;",
+                  "    pm.expect(members).to.be.an(\"array\").with.lengthOf(2);",
+                  "    pm.expect(members.map(m => m.id)).to.have.members([Number(pm.environment.get(\"admin_user_id\")), Number(pm.environment.get(\"agent_user_id\"))]);",
+                  "    members.forEach(m => pm.expect(m.validation_status).to.be.a(\"string\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get the event as its creator",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Event, members and permissions are returned\", function () {",
+                  "    const event = pm.response.json();",
+                  "    pm.expect(event.id).to.eql(Number(pm.environment.get(\"event_id\")));",
+                  "    pm.expect(event.name).to.eql(\"Conseil municipal (newman)\");",
+                  "    pm.expect(event.category).to.eql(\"meeting\");",
+                  "    pm.expect(event.visibility).to.eql(\"Public\");",
+                  "    pm.expect(event.created_by).to.eql(Number(pm.environment.get(\"admin_user_id\")));",
+                  "    pm.expect(event.members).to.be.an(\"array\").with.lengthOf(2);",
+                  "    pm.expect(event.permissions).to.include({ can_edit: true, can_delete: true });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get the event as a participant",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_agent}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"A plain participant can read but not edit\", function () {",
+                  "    const event = pm.response.json();",
+                  "    pm.expect(event.permissions).to.include({ can_edit: false, can_delete: false });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Plain participant cannot assign others",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_agent}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Updates",
+      "item": [
+        {
+          "name": "Plain participant cannot edit the event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_agent}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"Salle des mariages\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update the event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"Salle des mariages\",\n  \"description\": \"Ordre du jour envoyé la veille\",\n  \"category\": \"ceremony\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update ending before the start is rejected",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_end_time\": \"2026-10-05T17:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Event reflects the update",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Location, description and category were updated\", function () {",
+                  "    const event = pm.response.json();",
+                  "    pm.expect(event.location).to.eql(\"Salle des mariages\");",
+                  "    pm.expect(event.description).to.eql(\"Ordre du jour envoyé la veille\");",
+                  "    pm.expect(event.category).to.eql(\"ceremony\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Validation is refused when the event is not pending",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/validation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "validation"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Validation with an unknown status is rejected",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/validation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "validation"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Maybe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Calendar",
+      "item": [
+        {
+          "name": "Calendar of the creator over October",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The event is listed as a membership\", function () {",
+                  "    const events = pm.response.json().events;",
+                  "    pm.expect(events).to.be.an(\"array\");",
+                  "    const event = events.find(e => e.id === Number(pm.environment.get(\"event_id\")));",
+                  "    pm.expect(event, 'event').to.exist;",
+                  "    pm.expect(event.name).to.eql(\"Conseil municipal (newman)\");",
+                  "    pm.expect(event.is_member).to.eql(true);",
+                  "    pm.expect(new Date(event.start).toISOString()).to.eql(\"2026-10-05T18:00:00.000Z\");",
+                  "    pm.expect(new Date(event.end).toISOString()).to.eql(\"2026-10-05T20:00:00.000Z\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Calendar of the plain user over October",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_agent}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The event is listed for the participant too\", function () {",
+                  "    const events = pm.response.json().events;",
+                  "    pm.expect(events.map(e => e.id)).to.include(Number(pm.environment.get(\"event_id\")));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Calendar over another month does not list the event",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-11-01T00:00:00Z&end=2026-11-30T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-11-01T00:00:00Z&end=2026-11-30T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The event is absent\", function () {",
+                  "    pm.expect(pm.response.json().events.map(e => e.id)).to.not.include(Number(pm.environment.get(\"event_id\")));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Calendar with end before start is rejected",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-31T00:00:00Z&end=2026-10-01T00:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-31T00:00:00Z&end=2026-10-01T00:00:00Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Calendar without a period is rejected",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Remove the plain user",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/{{agent_user_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                "{{agent_user_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Removed user can no longer read the event",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_agent}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Removing a user who is not assigned answers 404",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/members/{{agent_user_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                "members",
+                "{{agent_user_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Non-creator cannot delete the event",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_agent}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete the event",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Deleted event answers 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{event_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

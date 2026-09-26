@@ -1,4 +1,6 @@
 use actix_web::{delete, web, HttpResponse, Responder};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -83,12 +85,16 @@ pub async fn remove_event_member(
     .await?;
 
     let db = state.get_smart_db();
-    let removed: Vec<i32> = db
-        .fetch_all(&RemoveUserFromEventQueryView::new(member_id, event_id))
+    // `RETURNING user_id` yields a bare integer column: it must be read as a scalar
+    // (`fetch_all` expects a JSON row and failed with a column decode error, hence a `500`).
+    // No row means the user was not assigned to the event.
+    match db
+        .fetch_scalar::<i32, _>(&RemoveUserFromEventQueryView::new(member_id, event_id))
         .await
-        .map_err(database_error)?;
-    if removed.is_empty() {
-        return Err(ApiError::NotFound);
+    {
+        Ok(_) => {}
+        Err(ApiLibError::Database(DbError::NotFound)) => return Err(ApiError::NotFound),
+        Err(error) => return Err(database_error(error)),
     }
     db.execute(RefreshEventValidationQueryView::new(event_id))
         .await
