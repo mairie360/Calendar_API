@@ -141,7 +141,10 @@ services:
     environment:
       <<: *common-env
       PUBLIC_URL: http://calendar.development.mairie360.fr
-      JWT_SECRET: b"secret"
+      # Local dev stack only: the API refuses this well-known value unless JWT_ALLOW_WEAK_SECRET is
+      # set (mairie360_api_lib 2.0.0). The CI stacks use a random secret per run (MAIR-428).
+      JWT_SECRET: ${JWT_SECRET:-b"secret"}
+      JWT_ALLOW_WEAK_SECRET: "true"
       JWT_TIMEOUT: 3600
       # Swagger UI and /api-docs/openapi.json are off unless enabled (MAIR-424); this stack reads the spec.
       SWAGGER_ENABLED: "true"
