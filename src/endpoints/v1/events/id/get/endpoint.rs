@@ -1,4 +1,5 @@
 use actix_web::{get, web, HttpResponse, Responder};
+use mairie360_api_lib::database::db_interface::id_from_sql;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -37,12 +38,12 @@ pub async fn load_event(
         service: input.service,
         location: input.location,
         recurrence: input.recurrence,
-        owner: event.owner_id().map(|id| id as u64),
-        created_by: event.created_by().map(|id| id as u64),
+        owner: event.owner_id().map(id_from_sql),
+        created_by: event.created_by().map(id_from_sql),
         members: members
             .into_iter()
             .map(|member| MemberView {
-                id: member.user_id() as u64,
+                id: id_from_sql(member.user_id()),
                 validation_status: member.validation_status(),
             })
             .collect(),

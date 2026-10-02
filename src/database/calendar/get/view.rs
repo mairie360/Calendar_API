@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 
 use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
 
@@ -19,7 +21,7 @@ impl GetCalendarQueryView {
             params: vec![
                 QueryParam::DateTime(start),
                 QueryParam::DateTime(end),
-                QueryParam::I32(user_id as i32),
+                QueryParam::I32(id_to_sql(user_id)),
             ],
         }
     }
@@ -33,7 +35,7 @@ impl GetCalendarQueryView {
     }
 
     pub fn user_id(&self) -> u64 {
-        self.params[2].as_i32() as u64
+        id_from_sql(self.params[2].as_i32())
     }
 }
 

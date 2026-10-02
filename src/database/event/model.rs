@@ -151,7 +151,9 @@ impl EventInput {
                     .map(|r| r.frequency.as_str().to_string())
                     .unwrap_or_default(),
             ),
-            QueryParam::I32(recurrence.map(|r| r.interval as i32).unwrap_or(1)),
+            QueryParam::I32(
+                recurrence.map_or(1, |r| i32::try_from(r.interval).unwrap_or(i32::MAX)),
+            ),
             QueryParam::Text(
                 recurrence
                     .and_then(|r| r.days_of_week.as_ref())

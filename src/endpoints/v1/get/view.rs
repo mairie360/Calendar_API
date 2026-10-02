@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use mairie360_api_lib::database::db_interface::id_from_sql;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::database::calendar::get::view::Event;
@@ -65,7 +66,7 @@ impl From<Event> for EventView {
     fn from(event: Event) -> Self {
         let visibility = event.visibility();
         Self {
-            id: event.id as u64,
+            id: id_from_sql(event.id),
             name: event.name,
             start: event.start_date,
             end: event.end_date,

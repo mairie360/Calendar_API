@@ -285,3 +285,36 @@ async fn write_bodies_are_validated() {
         );
     }
 }
+
+#[tokio::test]
+#[serial]
+async fn an_id_beyond_int4_is_not_an_alias_of_a_smaller_one() {
+    let ctx = TestContext::new().await;
+    let creator = create_user(&ctx.db, "Creator", Some("User")).await;
+    let event = ctx.event(creator, "Public").await;
+    add_member(&ctx.db, event, creator).await;
+    let app = init_app!(ctx);
+    // `as i32` used to wrap `event + 2^32` to `event`.
+    let alias = event + (1 << 32);
+
+    assert_eq!(
+        status_of!(
+            app,
+            TestRequest::get()
+                .uri(&format!("/api/v1/events/{event}/"))
+                .insert_header(bearer(creator))
+        ),
+        200
+    );
+    for request in [
+        TestRequest::get().uri(&format!("/api/v1/events/{alias}/")),
+        TestRequest::delete().uri(&format!("/api/v1/events/{alias}/")),
+        TestRequest::get().uri(&format!("/api/v1/events/{alias}/members/")),
+        TestRequest::delete().uri(&format!(
+            "/api/v1/events/{event}/members/{}/",
+            creator + (1 << 32)
+        )),
+    ] {
+        assert_eq!(status_of!(app, request.insert_header(bearer(creator))), 404);
+    }
+}

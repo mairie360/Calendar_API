@@ -1,4 +1,4 @@
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{id_to_sql, ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -12,8 +12,8 @@ impl EventAccessQueryView {
     pub fn new(event_id: u64, user_id: u64) -> Self {
         Self {
             params: vec![
-                QueryParam::I32(event_id as i32),
-                QueryParam::I32(user_id as i32),
+                QueryParam::I32(id_to_sql(event_id)),
+                QueryParam::I32(id_to_sql(user_id)),
             ],
         }
     }
@@ -142,7 +142,7 @@ pub struct LockEventQueryView {
 impl LockEventQueryView {
     pub fn new(event_id: u64) -> Self {
         Self {
-            params: vec![QueryParam::I32(event_id as i32)],
+            params: vec![QueryParam::I32(id_to_sql(event_id))],
         }
     }
 }
