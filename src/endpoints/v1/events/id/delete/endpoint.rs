@@ -4,7 +4,7 @@ use mairie360_api_lib::state::AppState;
 
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::delete::view::DeleteEventQueryView;
-use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
 
 #[utoipa::path(
     delete,
@@ -71,13 +71,12 @@ pub async fn delete_event(
     event_id: web::Path<u64>,
 ) -> Result<impl Responder, ApiError> {
     let event_id = event_id.into_inner();
-    require_event_access(&state, event_id, auth_user.id, EventAccess::can_delete).await?;
-
-    state
-        .get_smart_db()
-        .execute(DeleteEventQueryView::new(event_id))
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    require_event_access_in(&mut tx, event_id, auth_user.id, EventAccess::can_delete).await?;
+    tx.execute(&DeleteEventQueryView::new(event_id))
         .await
         .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)?;
 
     Ok(HttpResponse::NoContent().finish())
 }

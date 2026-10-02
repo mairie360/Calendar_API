@@ -7,7 +7,7 @@ use mairie360_api_lib::state::AppState;
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::add_member::view::AddUserToEventQueryView;
 use crate::database::event::validation::view::CanAssignUserQueryView;
-use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
 use crate::endpoints::v1::events::id::members::post::view::PostMemberView;
 
 #[utoipa::path(
@@ -93,16 +93,18 @@ pub async fn add_event_member(
     view: web::Json<PostMemberView>,
 ) -> Result<impl Responder, ApiError> {
     let event_id = event_id.into_inner();
-    require_event_access(
-        &state,
+    // One transaction: the event row stays locked from the access check to the insertion, and the
+    // assignment scope is read in the same snapshot (MAIR-420).
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    require_event_access_in(
+        &mut tx,
         event_id,
         auth_user.id,
         EventAccess::can_manage_members,
     )
     .await?;
 
-    let db = state.get_smart_db();
-    let assignable: bool = db
+    let assignable: bool = tx
         .fetch_scalar(&CanAssignUserQueryView::new(auth_user.id, view.user_id))
         .await
         .map_err(database_error)?;
@@ -111,14 +113,15 @@ pub async fn add_event_member(
     }
     // Unique index on (event_id, user_id): only a duplicate is a conflict, any other failure is
     // a database error.
-    match db
-        .execute(AddUserToEventQueryView::new(view.user_id, event_id))
+    match tx
+        .execute(&AddUserToEventQueryView::new(view.user_id, event_id))
         .await
     {
         Ok(()) => {}
         Err(ApiLibError::Database(DbError::UniqueViolation(_))) => return Err(ApiError::Conflict),
         Err(error) => return Err(database_error(error)),
     }
+    tx.commit().await.map_err(database_error)?;
 
     Ok(HttpResponse::Created().finish())
 }
