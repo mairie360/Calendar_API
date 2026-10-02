@@ -42,6 +42,15 @@ use crate::endpoints::error::{database_error, require_event_access_in, ApiError}
             example = json!("Jeton expiré")
         ),
         (
+            status = 429,
+            description = "The caller exceeded their request quota (`RATE_LIMIT_PER_SECOND` per second on \
+                           average, bursts of `RATE_LIMIT_BURST`, counted per user). The \
+                           `Retry-After` header gives the seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Too many requests, retry in 1s.")
+        ),
+        (
             status = 403,
             description = "The caller cannot manage the members of this event.",
             body = String,

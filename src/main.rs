@@ -1,6 +1,10 @@
+use actix_governor::Governor;
 use actix_web::{middleware, web, App, HttpServer};
 
 use calendar_api::database::pg_url::build_pg_url;
+use calendar_api::endpoints::rate_limit::{
+    RateLimit, DEFAULT_RATE_LIMIT_BURST, DEFAULT_RATE_LIMIT_PER_SECOND,
+};
 use calendar_api::endpoints::swagger::{swagger_enabled_from_env, ApiDoc};
 use calendar_api::endpoints::{config, health, ready};
 
@@ -37,6 +41,23 @@ async fn main() -> std::io::Result<()> {
     let swagger_enabled = swagger_enabled_from_env();
     log::info!("Swagger UI and /api-docs/openapi.json served: {swagger_enabled}");
 
+    // Per-user quota of the /api scope (MAIR-425); RATE_LIMIT_PER_SECOND=0 disables it.
+    let rate_limit = RateLimit::from_env();
+    match rate_limit {
+        Some(limit) => log::info!(
+            "Rate limit: {} requests/s per user, bursts of {}",
+            limit.per_second,
+            limit.burst
+        ),
+        None => log::warn!("Rate limit disabled (RATE_LIMIT_PER_SECOND=0)"),
+    }
+    let governor = rate_limit
+        .unwrap_or(RateLimit {
+            per_second: DEFAULT_RATE_LIMIT_PER_SECOND,
+            burst: DEFAULT_RATE_LIMIT_BURST,
+        })
+        .governor_config();
+
     let server = HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
@@ -56,7 +77,16 @@ async fn main() -> std::io::Result<()> {
             .service(health::health)
             .service(ready::ready)
             // 3. Routes protected by a JWT.
-            .service(web::scope("/api").wrap(JwtMiddleware).configure(config))
+            // The last `wrap` runs first: the JWT is checked, then the caller's quota.
+            .service(
+                web::scope("/api")
+                    .wrap(middleware::Condition::new(
+                        rate_limit.is_some(),
+                        Governor::new(&governor),
+                    ))
+                    .wrap(JwtMiddleware)
+                    .configure(config),
+            )
     })
     .bind(bind_address)?;
 
