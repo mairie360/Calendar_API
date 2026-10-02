@@ -19,10 +19,10 @@ where
 #[serde(deny_unknown_fields)]
 pub struct PatchEventView {
     /// New title. Absent to leave it unchanged. Not blank, at most 150 characters, no control
-    /// character, no `<` or `>`.
+    /// character.
     #[schema(min_length = 1, max_length = 150, example = "Conseil municipal")]
     pub name: Option<String>,
-    /// New description, at most 5000 characters, no `<` or `>`. Absent to leave it unchanged;
+    /// New description, at most 5000 characters. Absent to leave it unchanged;
     /// `null` clears it.
     #[serde(default, deserialize_with = "deserialize_present")]
     #[schema(value_type = Option<String>, nullable, max_length = 5000, example = "Ordre du jour envoyé une semaine avant")]
@@ -40,12 +40,12 @@ pub struct PatchEventView {
     pub visibility: Option<EventVisibility>,
     /// New category. Absent to leave it unchanged.
     pub category: Option<EventCategory>,
-    /// New organising service, at most 128 characters, no control character, no `<` or `>`.
+    /// New organising service, at most 128 characters, no control character.
     /// Absent to leave it unchanged; `null` clears it.
     #[serde(default, deserialize_with = "deserialize_present")]
     #[schema(value_type = Option<String>, nullable, max_length = 128, example = "Secrétariat général")]
     pub service: Option<Option<String>>,
-    /// New location, at most 255 characters, no control character, no `<` or `>`. Absent to
+    /// New location, at most 255 characters, no control character. Absent to
     /// leave it unchanged; `null` clears it.
     #[serde(default, deserialize_with = "deserialize_present")]
     #[schema(value_type = Option<String>, nullable, max_length = 255, example = "Salle du conseil")]
