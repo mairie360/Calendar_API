@@ -6,6 +6,7 @@
 pub mod access;
 pub mod calendar;
 pub mod members;
+pub mod transactions;
 pub mod validation;
 
 use std::sync::Once;

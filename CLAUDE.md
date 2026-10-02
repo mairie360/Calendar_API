@@ -150,6 +150,12 @@ dates are `events_start_time` / `events_end_time` like POST and GET; the old `ev
 `409`; any other database error is a `500`. Deleting an event removes its orphan recurrence rule in the same
 statement.
 
+Every write on an existing event (PATCH, DELETE, members POST/DELETE, PATCH validation) runs in **one
+transaction** (`SmartDatabase::begin`, MAIR-420) opened by `require_event_access_in`: it locks the event row
+(`LockEventQueryView`, `FOR UPDATE`), computes the caller's rights, then runs the write queries and commits. An
+early `?` drops the transaction, which rolls it back. Reads keep `require_event_access` (no transaction). A new
+write handler must follow the same shape instead of chaining independent `execute` calls.
+
 Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500, text body).
 
 Tests (`tests/queries/`) hit a real Postgres testcontainer: `Database::new(host).await` (from

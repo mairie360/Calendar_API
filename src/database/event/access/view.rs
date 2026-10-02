@@ -130,3 +130,29 @@ impl EventAccess {
         self.requires_approval && !self.manager_role
     }
 }
+
+/// Locks the row of event `$1` until the end of the transaction (`FOR UPDATE`), so that the
+/// rights computed by `EventAccessQueryView` in the same transaction still hold when the write
+/// runs: a concurrent edit, deletion, member change or decision on the same event waits.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LockEventQueryView {
+    params: Vec<QueryParam>,
+}
+
+impl LockEventQueryView {
+    pub fn new(event_id: u64) -> Self {
+        Self {
+            params: vec![QueryParam::I32(event_id as i32)],
+        }
+    }
+}
+
+impl ApiRequestDto for LockEventQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT id FROM events WHERE id = $1 FOR UPDATE"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
+    }
+}
