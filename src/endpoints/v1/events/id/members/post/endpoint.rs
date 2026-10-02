@@ -1,78 +1,80 @@
 use actix_web::{post, web, HttpResponse, Responder};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::add_member::view::AddUserToEventQueryView;
-use crate::database::event::validation::view::{
-    CanAssignUserQueryView, RefreshEventValidationQueryView,
-};
+use crate::database::event::validation::view::CanAssignUserQueryView;
 use crate::endpoints::error::{database_error, require_event_access, ApiError};
 use crate::endpoints::v1::events::id::members::post::view::PostMemberView;
 
 #[utoipa::path(
     post,
     path = "",
-    summary = "Assigner un participant à un événement",
-    description = "Assigne un utilisateur à l'événement et recalcule aussitôt son statut de \
-                   validation global, l'arrivée d'un participant pouvant le remettre en attente.\n\n\
-                   Deux contrôles indépendants se succèdent, tous deux rendus en `403` : \
-                   l'appelant doit pouvoir gérer les participants (créateur, ou personne habilitée \
-                   à modifier l'événement), **et** l'utilisateur visé doit être dans son périmètre \
-                   d'assignation. Le message du corps ne distingue pas les deux cas.\n\n\
-                   C'est par cet endpoint que le créateur s'ajoute lui-même après \
-                   `POST /api/v1/events/`. La réponse a un corps vide.",
+    summary = "Assign a member to an event",
+    description = "Assigns a user to the event. The approval of the event is not touched: a \
+                   decision already taken (approved or rejected) stays, and a pending event stays \
+                   pending.\n\n\
+                   Two independent checks, both answered with `403`: the caller must be able to \
+                   manage the members (creator, or someone allowed to edit the event), **and** the \
+                   target user must be in their assignment scope (Admin and Maire: anyone, the \
+                   others: themselves and the members of their groups). The body does not tell \
+                   the two apart.\n\n\
+                   This is how the creator adds themselves after `POST /api/v1/events/`. The \
+                   response has an empty body.",
     params(
-        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21)
+        ("event_id" = u64, Path, description = "Event id.", example = 21)
     ),
     request_body(
         content = PostMemberView,
-        description = "Identifiant Core API de l'utilisateur à assigner.",
+        description = "Core API id of the user to assign.",
         example = json!({ "user_id": 51 })
     ),
     responses(
         (
             status = 201,
-            description = "Participant assigné et validation de l'événement recalculée. Corps vide.",
+            description = "Member assigned. Empty body.",
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, `event_id` non entier, ou champ `user_id` absent.",
+            description = "Malformed JSON body, unknown field, `event_id` not an integer, or missing `user_id`.",
             body = String,
             content_type = "text/plain",
             example = json!("Json deserialize error: missing field `user_id`")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 403,
-            description = "L'appelant ne peut pas gérer les participants de cet événement, ou l'utilisateur visé est hors de son périmètre d'assignation.",
+            description = "The caller cannot manage the members of this event, or the target user is outside their assignment scope.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden.")
         ),
         (
             status = 404,
-            description = "Aucun événement ne porte cet identifiant.",
+            description = "No event has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown event.")
         ),
         (
             status = 409,
-            description = "L'utilisateur est déjà assigné à cet événement.",
+            description = "The user is already assigned to this event.",
             body = String,
             content_type = "text/plain",
             example = json!("Conflict.")
         ),
         (
             status = 500,
-            description = "Erreur de base de données.",
+            description = "Database error.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -107,13 +109,16 @@ pub async fn add_event_member(
     if !assignable {
         return Err(ApiError::Forbidden);
     }
-    // Index unique (event_id, user_id) : un doublon échoue à l'insertion.
-    db.execute(AddUserToEventQueryView::new(view.user_id, event_id))
+    // Unique index on (event_id, user_id): only a duplicate is a conflict, any other failure is
+    // a database error.
+    match db
+        .execute(AddUserToEventQueryView::new(view.user_id, event_id))
         .await
-        .map_err(|_| ApiError::Conflict)?;
-    db.execute(RefreshEventValidationQueryView::new(event_id))
-        .await
-        .map_err(database_error)?;
+    {
+        Ok(()) => {}
+        Err(ApiLibError::Database(DbError::UniqueViolation(_))) => return Err(ApiError::Conflict),
+        Err(error) => return Err(database_error(error)),
+    }
 
     Ok(HttpResponse::Created().finish())
 }

@@ -1,6 +1,7 @@
 use crate::common::event_input;
 use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
 use calendar_api::database::event::create::view::CreateEventQueryView;
+use calendar_api::database::event::model::EventVisibility;
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
@@ -8,14 +9,16 @@ use serial_test::serial;
 
 #[tokio::test]
 #[serial]
-async fn test_get_calendar_scoped_to_user() {
+async fn test_get_calendar_hides_private_events_of_others() {
     let (_container, host) = get_shared_db().await;
     let db = Database::new(host).await;
 
     let start = Utc::now();
     let end = start + Duration::hours(1);
 
-    let create = CreateEventQueryView::new(1, &event_input("Alice Only", None, start, end));
+    let mut input = event_input("Alice Only", None, start, end);
+    input.visibility = EventVisibility::Private;
+    let create = CreateEventQueryView::new(1, &input);
     let id = db.fetch_scalar::<i32, _>(&create).await.unwrap();
 
     let window_start = start - Duration::days(1);

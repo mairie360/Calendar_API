@@ -9,23 +9,22 @@ use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
 #[utoipa::path(
     get,
     path = "calendar",
-    summary = "Consulter son agenda sur une période",
-    description = "Renvoie les événements de l'utilisateur porté par le JWT qui tombent dans la \
-                   période demandée : ceux dont il est propriétaire et ceux auxquels il est \
-                   assigné.\n\n\
-                   Les événements récurrents dont la règle chevauche la période sont inclus, même \
-                   si leur date de départ est antérieure : c'est ce qui permet d'afficher une \
-                   semaine ou un mois sans rejouer les récurrences côté client.\n\n\
-                   Les deux bornes sont incluses, et `end` doit être postérieure ou égale à \
-                   `start`, sans quoi la réponse est `400`. Il n'y a pas de limite de largeur de \
-                   période ni de pagination.\n\n\
-                   Vue de liste : ni les participants ni le statut de validation ne sont inclus, \
-                   il faut passer par `GET /api/v1/events/{event_id}/`.",
+    summary = "Read the calendar over a period",
+    description = "Returns the events overlapping the requested period that the JWT user can \
+                   see: every `Public` event, and the `Private` events they own or are assigned \
+                   to.\n\n\
+                   Recurring events whose rule overlaps the period are included even when their \
+                   first occurrence is earlier: a week or a month can be displayed without \
+                   replaying the recurrences client side.\n\n\
+                   Both bounds are inclusive. `end` must not be before `start` and the period is \
+                   at most 366 days wide, otherwise the response is `400`. No pagination.\n\n\
+                   List view: neither the members nor the approval status are included, call \
+                   `GET /api/v1/events/{event_id}/` for them.",
     params(GetCalendarParams),
     responses(
         (
             status = 200,
-            description = "Événements de l'appelant sur la période, récurrences chevauchantes comprises.",
+            description = "Events visible to the caller over the period, overlapping recurrences included.",
             body = GetCalendarResultView,
             example = json!({
                 "events": [
@@ -35,6 +34,7 @@ use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
                         "start": "2026-10-05T18:00:00Z",
                         "end": "2026-10-05T20:00:00Z",
                         "is_member": true,
+                        "visibility": "Public",
                         "category": "meeting",
                         "service": "Secrétariat général",
                         "location": "Salle du conseil",
@@ -45,21 +45,21 @@ use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
         ),
         (
             status = 400,
-            description = "`start` ou `end` absent ou mal formé, ou `end` antérieure à `start`.",
+            description = "`start` or `end` missing or malformed, `end` before `start`, or a period wider than 366 days.",
             body = String,
             content_type = "text/plain",
             example = json!("Bad request.")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 500,
-            description = "Erreur de base de données.",
+            description = "Database error.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -76,7 +76,7 @@ pub async fn get_calendar(
     auth_user: AuthenticatedUser,
     params: web::Query<GetCalendarParams>,
 ) -> Result<impl Responder, ApiError> {
-    if params.end < params.start {
+    if !params.is_valid() {
         return Err(ApiError::BadRequest);
     }
     let events: Vec<Event> = state

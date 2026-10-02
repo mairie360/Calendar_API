@@ -6,59 +6,58 @@ use mairie360_api_lib::state::AppState;
 
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::remove_member::view::RemoveUserFromEventQueryView;
-use crate::database::event::validation::view::RefreshEventValidationQueryView;
 use crate::endpoints::error::{database_error, require_event_access, ApiError};
 
 #[utoipa::path(
     delete,
     path = "",
-    summary = "Retirer un participant d'un événement",
-    description = "Désassigne un utilisateur de l'événement et recalcule son statut de validation \
-                   global, le départ d'un participant pouvant suffire à le valider.\n\n\
-                   Réservé à qui peut gérer les participants : le créateur, ou une personne \
-                   habilitée à modifier l'événement.\n\n\
-                   Opération non idempotente : retirer quelqu'un qui n'est pas assigné répond \
-                   `404`, au même titre qu'un événement inexistant.",
+    summary = "Remove a member from an event",
+    description = "Unassigns a user from the event. The approval of the event is not touched: \
+                   removing the Responsable who rejected it leaves it rejected.\n\n\
+                   Reserved to whoever can manage the members: the creator, or someone allowed to \
+                   edit the event.\n\n\
+                   Not idempotent: removing someone who is not assigned answers `404`, like an \
+                   unknown event.",
     params(
-        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21),
-        ("member_id" = u64, Path, description = "Identifiant Core API du participant à retirer.", example = 51)
+        ("event_id" = u64, Path, description = "Event id.", example = 21),
+        ("member_id" = u64, Path, description = "Core API id of the member to remove.", example = 51)
     ),
     responses(
         (
             status = 204,
-            description = "Participant retiré et validation de l'événement recalculée. Corps vide.",
+            description = "Member removed. Empty body.",
         ),
         (
             status = 400,
-            description = "Un segment de l'URL n'est pas un entier, ou le corps JSON est malformé.",
+            description = "A path segment is not an integer.",
             body = String,
             content_type = "text/plain",
             example = json!("Path deserialize error: can not parse `abc` to a u64")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 403,
-            description = "L'appelant ne peut pas gérer les participants de cet événement.",
+            description = "The caller cannot manage the members of this event.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden.")
         ),
         (
             status = 404,
-            description = "Aucun événement ne porte cet identifiant, ou l'utilisateur n'y est pas assigné.",
+            description = "No event has this id, or the user is not assigned to it.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown event.")
         ),
         (
             status = 500,
-            description = "Erreur de base de données.",
+            description = "Database error.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -96,9 +95,6 @@ pub async fn remove_event_member(
         Err(ApiLibError::Database(DbError::NotFound)) => return Err(ApiError::NotFound),
         Err(error) => return Err(database_error(error)),
     }
-    db.execute(RefreshEventValidationQueryView::new(event_id))
-        .await
-        .map_err(database_error)?;
 
     Ok(HttpResponse::NoContent().finish())
 }

@@ -7,5 +7,4 @@ pub mod get;
 pub mod get_event_members;
 pub mod model;
 pub mod remove_member;
-pub mod update_user_status;
 pub mod validation;

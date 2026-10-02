@@ -19,11 +19,12 @@ fn test_edit_view_params() {
     let view = EditEventQueryView::new(
         12,
         &event_input("Titre", None, start, start + Duration::hours(1)),
+        false,
     );
 
     assert_eq!(view.id(), 12);
     assert_eq!(view.name(), "Titre");
-    assert_eq!(view.query_params().len(), 14);
+    assert_eq!(view.query_params().len(), 15);
     assert!(view.query_sql().contains("UPDATE events"));
 }
 
@@ -51,7 +52,7 @@ async fn test_edit_event_updates_fields_and_recurrence_lifecycle() {
         ends_on: None,
     });
     let updated: bool = db
-        .fetch_scalar(&EditEventQueryView::new(id, &input))
+        .fetch_scalar(&EditEventQueryView::new(id, &input, false))
         .await
         .unwrap();
     assert!(updated);
@@ -67,7 +68,7 @@ async fn test_edit_event_updates_fields_and_recurrence_lifecycle() {
         ends_on: chrono::NaiveDate::from_ymd_opt(2027, 6, 30),
     });
     assert!(db
-        .fetch_scalar::<bool, _>(&EditEventQueryView::new(id, &input))
+        .fetch_scalar::<bool, _>(&EditEventQueryView::new(id, &input, false))
         .await
         .unwrap());
     let event = read(&db, id).await;
@@ -77,7 +78,7 @@ async fn test_edit_event_updates_fields_and_recurrence_lifecycle() {
     // Retrait : l'événement est détaché puis la règle orpheline supprimée.
     input.recurrence = None;
     assert!(db
-        .fetch_scalar::<bool, _>(&EditEventQueryView::new(id, &input))
+        .fetch_scalar::<bool, _>(&EditEventQueryView::new(id, &input, false))
         .await
         .unwrap());
     assert_eq!(read(&db, id).await.recurrence_id(), None);
@@ -122,6 +123,7 @@ async fn test_edit_unknown_event() {
         .fetch_scalar(&EditEventQueryView::new(
             999_999,
             &event_input("Inconnu", None, start, start + Duration::hours(1)),
+            false,
         ))
         .await
         .unwrap();

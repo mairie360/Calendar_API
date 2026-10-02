@@ -5,14 +5,14 @@ use crate::database::event::access::view::ApprovalStatus;
 use crate::database::event::get_event_members::view::EventValidationStatus;
 use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
 
-/// Participant d'un événement et son statut de validation.
+/// Member of an event.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct Member {
-    /// Identifiant Core API du participant.
+    /// Core API id of the member.
     #[schema(example = 42)]
     pub id: u64,
-    /// Statut de validation de ce participant, appliqué en bloc par
-    /// `PATCH /api/v1/events/{event_id}/validation`.
+    /// Approval status of the event, repeated on every member (`approval_status` of the event,
+    /// in the `validated` / `refused` / `pending` vocabulary).
     pub validation_status: EventValidationStatus,
 }
 
@@ -27,8 +27,8 @@ pub struct EventPermissionsView {
     /// modifier sans pouvoir supprimer.
     #[schema(example = true)]
     pub can_delete: bool,
-    /// L'appelant peut valider l'événement : Responsable assigné, partageant un groupe avec le
-    /// créateur, sur un événement encore en attente.
+    /// The caller can approve or reject the event: assigned Responsable sharing a group with the
+    /// creator, on an event still pending.
     #[schema(example = false)]
     pub can_validate: bool,
 }
@@ -69,9 +69,10 @@ pub struct GetEventResultView {
     /// Identifiant Core API du créateur : le seul à pouvoir supprimer l'événement.
     #[schema(example = 42)]
     pub created_by: Option<u64>,
-    /// Participants assignés et leur statut de validation individuel.
+    /// Assigned members, sorted by id.
     pub members: Vec<Member>,
-    /// Statut de validation global de l'événement.
+    /// Approval of the event: `pending` while a Responsable has not decided (events created by a
+    /// User or Guest, or moved by their creator since), `approved` or `rejected` otherwise.
     pub approval_status: ApprovalStatus,
     /// Droits de l'appelant sur cet événement, à consommer tels quels côté client.
     pub permissions: EventPermissionsView,

@@ -3,8 +3,12 @@
 use calendar_api::database::event::model::{
     EventCategory, EventInput, EventRecurrence, EventVisibility, RecurrenceFrequency,
 };
+use calendar_api::endpoints::v1::events::id::members::post::view::PostMemberView;
 use calendar_api::endpoints::v1::events::id::patch::view::PatchEventView;
+use calendar_api::endpoints::v1::events::id::validation::view::UpdateEventValidationView;
+use calendar_api::endpoints::v1::events::post::view::PostEventView;
 use calendar_api::endpoints::v1::events::validate_event_input;
+use calendar_api::endpoints::v1::get::view::{GetCalendarParams, MAX_CALENDAR_RANGE_DAYS};
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 
 fn input() -> EventInput {
@@ -93,6 +97,55 @@ fn patch_keeps_missing_fields_and_clears_explicit_nulls() {
     assert_eq!(patched.category, EventCategory::Ceremony);
     assert_eq!(patched.description.as_deref(), Some("Ordre du jour"));
     assert_eq!(patched.service.as_deref(), Some("Urbanisme"));
+}
+
+#[test]
+fn patch_reads_the_dates_under_the_post_and_get_names() {
+    let patch: PatchEventView = serde_json::from_str(
+        r#"{"events_start_time":"2026-10-12T18:00:00Z","events_end_time":"2026-10-12T20:00:00Z"}"#,
+    )
+    .unwrap();
+    let patched = patch.apply_to(input());
+    assert_eq!(
+        patched.start,
+        Utc.with_ymd_and_hms(2026, 10, 12, 18, 0, 0).unwrap()
+    );
+    assert_eq!(
+        patched.end,
+        Utc.with_ymd_and_hms(2026, 10, 12, 20, 0, 0).unwrap()
+    );
+    assert!(patched.changes_schedule(&input()));
+
+    // Legacy names are still read.
+    let legacy: PatchEventView =
+        serde_json::from_str(r#"{"event_end_time":"2026-10-12T20:00:00Z"}"#).unwrap();
+    assert!(legacy.events_end_time.is_some());
+}
+
+#[test]
+fn write_bodies_reject_unknown_fields() {
+    assert!(serde_json::from_str::<PatchEventView>(r#"{"start":"2026-10-12T18:00:00Z"}"#).is_err());
+    assert!(serde_json::from_str::<PostEventView>(
+        r#"{"name":"Conseil","events_start_time":"2026-10-12T18:00:00Z","events_end_time":"2026-10-12T20:00:00Z","colour":"red"}"#,
+    )
+    .is_err());
+    assert!(serde_json::from_str::<PostMemberView>(r#"{"user_id":51,"role":"admin"}"#).is_err());
+    assert!(serde_json::from_str::<UpdateEventValidationView>(
+        r#"{"status":"approved","comment":"ok"}"#
+    )
+    .is_err());
+}
+
+#[test]
+fn calendar_period_is_bounded() {
+    let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+    let params = |end| GetCalendarParams { start, end };
+    assert!(params(start).is_valid());
+    assert!(params(start + Duration::days(MAX_CALENDAR_RANGE_DAYS)).is_valid());
+    assert!(
+        !params(start + Duration::days(MAX_CALENDAR_RANGE_DAYS) + Duration::seconds(1)).is_valid()
+    );
+    assert!(!params(start - Duration::seconds(1)).is_valid());
 }
 
 #[test]
