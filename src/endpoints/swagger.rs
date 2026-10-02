@@ -1,5 +1,6 @@
 use crate::endpoints::health::HealthDoc;
 use crate::endpoints::hello::HelloDoc;
+use crate::endpoints::ready::ReadyDoc;
 use crate::endpoints::v1::doc::V1Doc;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
@@ -65,11 +66,12 @@ Statuses returned across the API, before the handler runs:
     tags(
         (name = "Calendar", description = "Vue calendrier : les événements de l'appelant sur une période, récurrences dépliées."),
         (name = "Events", description = "Événements : création, détail, modification, suppression, participants et validation."),
-        (name = "Service", description = "Sondes techniques non authentifiées, utilisées par Docker et Kubernetes.")
+        (name = "Service", description = "Unauthenticated technical probes, used by Docker and Kubernetes: `/health` (liveness) and `/ready` (readiness).")
     ),
     nest(
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
+        (path = "/", api = ReadyDoc),
         (path = "/", api = HelloDoc),
     ),
     modifiers(&SecurityAddon)
