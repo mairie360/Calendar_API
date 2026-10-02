@@ -24,18 +24,21 @@ Cargo aliases are defined in `.cargo/config.toml`:
 | `cargo lint_fix` | `cargo fmt --all` |
 | `cargo check_code` | `cargo clippy --all-targets --all-features -- -D warnings` (CI gate) |
 | `cargo open_api` | Regenerate the OpenAPI JSON: `cargo run --example generate_openapi` |
-| `cargo cov_test` | `cargo llvm-cov` with a **60% line-coverage gate** (`--fail-under-lines 60`), ignoring `endpoints/`, `main.rs`, `lib.rs` — CI gate |
+| `cargo cov_test` | `cargo llvm-cov` with a **60% line-coverage gate** (`--fail-under-lines 60`), ignoring `main.rs` and `lib.rs` only — CI gate |
 | `cargo cov` | Same as `cov_test` but also writes `codecov.json` (`--codecov`) |
 | `cargo build` / `cargo run` | Build / run the server (needs the env vars below) |
 
-Only the `database/` layer is coverage-gated; `endpoints/` (thin actix glue) and the binary
-entrypoints are deliberately excluded, so put testable logic in `database/`.
+`database/` **and** `endpoints/` are coverage-gated (MAIR-419): the access rules and input validation live
+in the handlers, so they are tested through the real `/api` scope. Only the binary entrypoints are excluded.
 
 Tests:
 
 - `cargo test` — runs everything. Integration tests in `tests/` spin up a **throwaway PostgreSQL
   testcontainer** via `mairie360_api_lib::test_setup` (Docker must be available; no local DB needed).
 - `cargo test --test integration_test` — only the integration suite.
+- `cargo test --test integration_test endpoints` — the handler tests (`tests/endpoints/`): the `/api` scope
+  mounted like `main.rs` (`JwtMiddleware` + `endpoints::config`) on the shared database, with JWTs signed by
+  `endpoints::bearer`. Every refusal (401, 403, 404, 409, 400) of a handler belongs there.
 - `cargo test test_create_event_by_user_success` — a single test by name.
 - DB query tests are `#[tokio::test] #[serial]` and call `get_shared_db()` (a process-wide
   `OnceCell` container shared across all tests), then `Database::new(host).await`.
