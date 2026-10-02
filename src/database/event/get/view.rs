@@ -92,18 +92,14 @@ impl GetEventQueryResultView {
     }
 
     pub fn visibility(&self) -> EventVisibility {
-        if self.visibility == "private" {
-            EventVisibility::Private
-        } else {
-            EventVisibility::Public
-        }
+        EventVisibility::from_db(&self.visibility)
     }
 
     pub fn category(&self) -> EventCategory {
         serde_json::from_value(serde_json::Value::String(self.category.clone())).unwrap_or_default()
     }
 
-    /// Données de l'événement au format d'écriture, pour appliquer une modification partielle.
+    /// Event data in the write format, to apply a partial update to.
     pub fn to_input(&self) -> EventInput {
         EventInput {
             name: self.name.clone(),

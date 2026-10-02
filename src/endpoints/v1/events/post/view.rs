@@ -3,8 +3,10 @@ use utoipa::ToSchema;
 
 use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, EventVisibility};
 
-/// Événement à créer ; l'appelant en devient propriétaire, sans être ajouté aux participants.
+/// Event to create; the caller becomes its owner without being added to its members. An unknown
+/// field is a `400`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PostEventView {
     /// Event title. Not blank once trimmed, at most 150 characters, no control character, no `<`
     /// or `>`.
@@ -53,8 +55,8 @@ impl From<PostEventView> for EventInput {
 /// Événement créé.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct PostEventResultView {
-    /// Identifiant attribué à l'événement créé. L'appelant en est le créateur, mais pas encore
-    /// un participant : s'assigner via `POST /api/v1/events/{event_id}/members/`.
+    /// Id of the created event. The caller is its creator but not yet a member: assign yourself
+    /// through `POST /api/v1/events/{event_id}/members/` to edit it.
     #[schema(example = 21)]
     pub event_id: u64,
 }

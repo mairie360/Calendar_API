@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
+/// Assigns user `$1` to event `$2`. A user already assigned fails with `DbError::UniqueViolation`
+/// (unique index on `(event_id, user_id)`).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AddUserToEventQueryView {
     params: Vec<QueryParam>,

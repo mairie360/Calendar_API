@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
-use crate::database::event::model::{EventCategory, EventRecurrence};
+use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GetCalendarQueryView {
@@ -51,19 +51,20 @@ impl Display for GetCalendarQueryView {
 
 impl ApiRequestDto for GetCalendarQueryView {
     fn query_sql(&self) -> &'static str {
-        // Événements dont l'utilisateur est propriétaire ou membre, qui chevauchent la période, ou dont la
-        // règle de répétition la chevauche (fin de règle exclusive).
+        // Public events and the events the user owns or is a member of, that overlap the period or
+        // whose recurrence rule overlaps it (rule end exclusive).
         concat!(
             "SELECT to_jsonb(t) FROM ( \
                 SELECT e.id, e.name, e.start_date, e.end_date, e.category, \
-                    e.service_label AS service, e.location, \
+                    e.service_label AS service, e.location, e.visibility, \
                     EXISTS (SELECT 1 FROM event_members em \
                         WHERE em.event_id = e.id AND em.user_id = $3) AS is_member, ",
             crate::recurrence_json_sql!(),
             " AS recurrence \
                 FROM events e LEFT JOIN recurrence_rules rr ON rr.id = e.recurrence_id \
-                WHERE (e.owner_id = $3 OR EXISTS (SELECT 1 FROM event_members em \
-                        WHERE em.event_id = e.id AND em.user_id = $3)) \
+                WHERE (e.visibility = 'public' OR e.owner_id = $3 \
+                        OR EXISTS (SELECT 1 FROM event_members em \
+                            WHERE em.event_id = e.id AND em.user_id = $3)) \
                   AND ((e.start_date <= $2 AND e.end_date >= $1) \
                     OR (rr.id IS NOT NULL AND rr.start_date <= $2 \
                         AND (rr.end_date IS NULL OR rr.end_date > $1))) \
@@ -91,6 +92,9 @@ pub struct Event {
     pub location: Option<String>,
     #[serde(default)]
     pub is_member: bool,
+    /// `public` or `private`, as stored in `events.visibility`.
+    #[serde(default)]
+    pub visibility: String,
     #[serde(default)]
     pub recurrence: Option<EventRecurrence>,
 }
@@ -111,8 +115,13 @@ impl Event {
             service: None,
             location: None,
             is_member: false,
+            visibility: "public".to_string(),
             recurrence: None,
         }
+    }
+
+    pub fn visibility(&self) -> EventVisibility {
+        EventVisibility::from_db(&self.visibility)
     }
 
     pub fn id(&self) -> i32 {

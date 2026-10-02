@@ -22,8 +22,12 @@ impl GetEventMemberQueryView {
 
 impl ApiRequestDto for GetEventMemberQueryView {
     fn query_sql(&self) -> &'static str {
+        // The approval is taken for the whole event: every member carries the event's status.
         "SELECT to_jsonb(t) FROM (
-            SELECT user_id, validation_status FROM event_members WHERE event_id = $1
+            SELECT em.user_id, e.approval_status AS validation_status
+            FROM event_members em JOIN events e ON e.id = em.event_id
+            WHERE em.event_id = $1
+            ORDER BY em.user_id
          ) t"
     }
 
@@ -38,7 +42,7 @@ impl Display for GetEventMemberQueryView {
     }
 }
 
-/// Statut de validation d'un participant : `validated`, `refused` ou `pending`.
+/// Approval status of the event, repeated on each member: `validated`, `refused` or `pending`.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EventValidationStatus {

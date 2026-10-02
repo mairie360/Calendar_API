@@ -2,9 +2,10 @@ use utoipa::ToSchema;
 
 use crate::database::event::access::view::ApprovalStatus;
 
-/// Statut de validation à appliquer à tous les participants de l'événement.
+/// Approval decision to record on the event. An unknown field is a `400`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateEventValidationView {
-    /// `approved` valide l'événement pour tous ses membres, `rejected` le refuse, `pending` le remet en attente.
+    /// `approved` approves the event, `rejected` refuses it, `pending` leaves it waiting.
     pub status: ApprovalStatus,
 }
