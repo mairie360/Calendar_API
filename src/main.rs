@@ -15,6 +15,10 @@ use utoipa_swagger_ui::SwaggerUi;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Structured logs (level, timestamp, target) for the handlers and actix's access log; the level
+    // is set by `RUST_LOG` (`info` by default, `calendar_api=debug` to trace the database layer).
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let redis_url = get_critical_env_var("REDIS_URL");
     let db_user = get_critical_env_var("DB_USER");
     let db_password = get_critical_env_var("DB_PASSWORD");
@@ -52,7 +56,7 @@ async fn main() -> std::io::Result<()> {
     let addr = server.addrs().first().copied();
     tokio::spawn(async move {
         if let Some(addr) = addr {
-            println!("Serveur démarré avec succès sur http://{}", addr);
+            log::info!("Server listening on http://{addr}");
         }
     });
 
