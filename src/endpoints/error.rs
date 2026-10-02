@@ -1,7 +1,9 @@
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 
-use crate::database::event::access::view::EventAccess;
+use mairie360_api_lib::smart_db::SmartTransaction;
+
+use crate::database::event::access::view::{EventAccess, EventAccessQueryView, LockEventQueryView};
 
 /// Erreurs communes des endpoints du calendrier (corps texte, sans détail interne).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,22 +50,13 @@ pub fn database_error<E: std::fmt::Debug>(error: E) -> ApiError {
     ApiError::DatabaseError
 }
 
-/// Charge les droits de l'appelant sur l'événement : 404 s'il n'existe pas, 403 si `allowed` refuse.
-pub async fn require_event_access(
-    state: &actix_web::web::Data<mairie360_api_lib::state::AppState>,
-    event_id: u64,
+/// Rejects the caller unless `allowed` accepts its rights: 404 for an unknown event, 403 otherwise.
+fn check_event_access(
+    mut access: EventAccess,
     user_id: u64,
     allowed: impl Fn(&EventAccess) -> bool,
 ) -> Result<EventAccess, ApiError> {
-    let mut access: EventAccess = state
-        .get_smart_db()
-        .fetch_one(
-            &crate::database::event::access::view::EventAccessQueryView::new(event_id, user_id),
-        )
-        .await
-        .map_err(database_error)?;
     access.caller_id = user_id as i32;
-
     if !access.exists {
         return Err(ApiError::NotFound);
     }
@@ -71,4 +64,38 @@ pub async fn require_event_access(
         return Err(ApiError::Forbidden);
     }
     Ok(access)
+}
+
+/// Loads the caller's rights on the event for a read: 404 if it does not exist, 403 if `allowed`
+/// refuses.
+pub async fn require_event_access(
+    state: &actix_web::web::Data<mairie360_api_lib::state::AppState>,
+    event_id: u64,
+    user_id: u64,
+    allowed: impl Fn(&EventAccess) -> bool,
+) -> Result<EventAccess, ApiError> {
+    let access: EventAccess = state
+        .get_smart_db()
+        .fetch_one(&EventAccessQueryView::new(event_id, user_id))
+        .await
+        .map_err(database_error)?;
+    check_event_access(access, user_id, allowed)
+}
+
+/// Same as [`require_event_access`] inside the transaction of a write: the event row is locked
+/// first, so the rights cannot change between this check and the write (MAIR-420).
+pub async fn require_event_access_in(
+    tx: &mut SmartTransaction,
+    event_id: u64,
+    user_id: u64,
+    allowed: impl Fn(&EventAccess) -> bool,
+) -> Result<EventAccess, ApiError> {
+    tx.execute(&LockEventQueryView::new(event_id))
+        .await
+        .map_err(database_error)?;
+    let access: EventAccess = tx
+        .fetch_one(&EventAccessQueryView::new(event_id, user_id))
+        .await
+        .map_err(database_error)?;
+    check_event_access(access, user_id, allowed)
 }
