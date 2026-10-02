@@ -118,8 +118,6 @@ const readHandlers = {
 };
 
 const writeHandlers = {
-  'POST /': ({ request }) => check(request(), { 'hello 200': (r) => r.status === 200 }),
-
   // Events: create → patch → delete.
   'POST /api/v1/events/': ({ request }) => {
     const res = request({ body: eventBody('k6 create event') });
