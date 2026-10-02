@@ -22,4 +22,5 @@ jobs:
     with:
       package_name: calendar-api
       cicd_version: v4.0.1
+    # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- the called workflow is our own centralized CICD
     secrets: inherit
