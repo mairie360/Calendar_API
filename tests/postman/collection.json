@@ -883,7 +883,7 @@
                   "    pm.expect(event.id).to.eql(Number(pm.environment.get(\"event_id\")));",
                   "    pm.expect(event.name).to.eql(\"Conseil municipal (newman)\");",
                   "    pm.expect(event.category).to.eql(\"meeting\");",
-                  "    pm.expect(event.visibility).to.eql(\"Public\");",
+                  "    pm.expect(event.visibility).to.eql(\"Private\");",
                   "    pm.expect(event.created_by).to.eql(Number(pm.environment.get(\"admin_user_id\")));",
                   "    pm.expect(event.members).to.be.an(\"array\").with.lengthOf(2);",
                   "    pm.expect(event.permissions).to.include({ can_edit: true, can_delete: true });",
@@ -1414,8 +1414,8 @@
                   "    pm.expect(event, 'event').to.exist;",
                   "    pm.expect(event.name).to.eql(\"Conseil municipal (newman)\");",
                   "    pm.expect(event.is_member).to.eql(true);",
-                  "    pm.expect(new Date(event.start).toISOString()).to.eql(\"2026-10-05T18:00:00.000Z\");",
-                  "    pm.expect(new Date(event.end).toISOString()).to.eql(\"2026-10-05T20:00:00.000Z\");",
+                  "    pm.expect(new Date(event.start).toISOString()).to.eql(\"2026-10-05T19:00:00.000Z\");",
+                  "    pm.expect(new Date(event.end).toISOString()).to.eql(\"2026-10-05T21:00:00.000Z\");",
                   "});"
                 ]
               }

@@ -89,7 +89,7 @@ function eventBody(name) {
   };
 }
 
-/** Event created by `auth`, with `memberIds` assigned (the creator only sees it once assigned). */
+/** Event created by `auth`, with `memberIds` assigned (the creator can only edit it once assigned). */
 function createEvent(name, memberIds, auth = ADMIN) {
   const eventId = fixture('POST', '/api/v1/events/', eventBody(name), auth).json('event_id');
   for (const userId of memberIds) {
@@ -127,7 +127,14 @@ const writeHandlers = {
   },
   'PATCH /api/v1/events/{event_id}/': ({ request }) => {
     const eventId = createEvent('k6 patch event', [1]);
-    check(request({ path: { event_id: eventId }, body: { location: 'Salle des mariages' } }), {
+    check(request({
+      path: { event_id: eventId },
+      body: {
+        events_start_time: '2026-10-05T19:00:00Z',
+        events_end_time: '2026-10-05T21:00:00Z',
+        location: 'Salle des mariages',
+      },
+    }), {
       'patch event 204': (r) => r.status === 204,
     });
     deleteEvent(eventId);

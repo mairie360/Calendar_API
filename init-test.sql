@@ -5,7 +5,7 @@
 -- image; it is the `sub` of the JWT ZAP injects. User 2 is a plain `User` account (event
 -- participant). User 3 is a `Responsable` sharing a group with user 2: an event created by user 2
 -- with user 3 as participant goes through the validation circuit (PATCH /events/{id}/validation,
--- exercised by load-test.js).
+-- exercised by load-test.js): events of a plain User are created `pending`.
 --
 -- User 51 and event 21 are the ids of the path parameter examples of the spec: ZAP builds its
 -- requests from these examples, so seeding them makes it scan the handlers on a real event
@@ -42,9 +42,9 @@ ON CONFLICT DO NOTHING;
 SELECT setval(pg_get_serial_sequence('groups', 'id'), GREATEST((SELECT MAX(id) FROM groups), 1));
 
 INSERT INTO events (id, name, description, start_date, end_date, visibility, category, location,
-                    created_by, owner_id)
+                    created_by, owner_id, approval_status)
 VALUES (21, 'Conseil municipal', 'Ordre du jour envoyé une semaine avant', '2026-10-05 18:00:00+00',
-        '2026-10-05 20:00:00+00', 'public', 'meeting', 'Salle du conseil', 1, 1)
+        '2026-10-05 20:00:00+00', 'public', 'meeting', 'Salle du conseil', 1, 1, 'validated')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO event_members (event_id, user_id, validation_status)

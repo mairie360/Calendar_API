@@ -124,58 +124,28 @@ types (`EventInput`, `EventRecurrence`…) and the SQL fragments reused by sever
 database images whose default tag is set by `mairie360_api_lib` (`dev-0aaede5` for lib 1.4.1, override with the
 `TEST_DB_VERSION` env var); the compose files pin the same `dev-0aaede5` images.
 
+The approval lives on the event (Database `releases/v1.8.0`, MAIR-392): `events.approval_status`
+(`event_validation_status`), `approval_decided_by`, `approval_decided_at`. An event is created `pending` when its
+creator only has the User/Guest roles (`creator_requires_approval_sql!` in `model.rs`), `validated` otherwise.
+Member changes never touch it; a PATCH moving the event (`EventInput::changes_schedule`: dates, recurrence,
+location) by an editor without a manager role sends it back to `pending` in the same `UPDATE`.
+`event_members.validation_status` is no longer read nor written: the members views return the event's status
+for every member.
+
 Every `/{event_id}` operation goes through `endpoints/error.rs::require_event_access` (one
-`EventAccessQueryView` query; 404 unknown event, 403 refused): reading needs the caller to be a member; editing
-needs a member who is the creator or Responsable/Maire/Admin; deleting is the creator's; managing members is the
-creator's or an editor's, and a user can only be assigned inside the caller's scope (Admin/Maire: anyone, others:
-themselves and members of their groups); adding or removing a member recomputes the validation (pending when a
-User/Guest creator shares a group with an assigned Responsable); `PATCH validation` is reserved to such an
-assigned Responsable sharing a group with the creator. `GET /{event_id}/` returns the resulting
-`approval_status` and `permissions`.
+`EventAccessQueryView` query; 404 unknown event, 403 refused): reading needs a `public` event, or the caller to be
+a member or the creator (`GET /calendar` also lists every `public` event); editing needs a member who is the
+creator or Responsable/Maire/Admin; deleting is the creator's; managing members is the creator's or an editor's,
+and a user can only be assigned inside the caller's scope (Admin/Maire: anyone, others: themselves and members of
+their groups); `PATCH validation` is reserved to an assigned Responsable sharing a group with the creator of a
+pending event, and only updates a still pending row (`409` on a concurrent decision). `GET /{event_id}/` returns
+the resulting `approval_status` and `permissions`.
 
-### Endpoint module convention
-
-Every endpoint is its own directory following the URL path, with up to four files:
-- `mod.rs` — declares submodules and an actix `config(cfg)` fn that wires `web::scope(...)`.
-- `endpoint.rs` — the handler: a public `#[get/post/...]` + `#[utoipa::path(...)]` function that checks the
-  caller's access, validates the input and runs the query views. Errors are the shared
-  `endpoints/error.rs::ApiError`, not a per-endpoint enum.
-- `view.rs` — request/response DTOs. Structs use private fields + explicit getters, `#[derive(ToSchema)]`
-  for OpenAPI, and `TryFrom<web::Json<T>>` / `TryFrom<web::Query<T>>` impls for input validation.
-- `doc.rs` — a `#[derive(OpenApi)]` struct listing this endpoint's `paths(...)` and schema
-  `components(...)`. These nest upward: `get/doc.rs` → `events/doc.rs` → `v1/doc.rs` →
-  `endpoints/swagger.rs::ApiDoc` (the single doc consumed by Swagger UI and `generate_openapi`). utoipa
-  *replaces* rather than merges two `nest` entries landing on the same path, so operations sharing a path are
-  listed in one document (see `events/doc.rs`), and a nest path keeps the trailing slash of the real route.
-
-When adding an endpoint: create the directory + 4 files, register it in the parent `mod.rs`
-`config`, and add its `doc.rs` struct to the parent `doc.rs` nest, or Swagger will not show it.
-
-### Database layer (`src/database/`)
-
-Mirrors `endpoints/` but for persistence. Each operation is a directory holding a single
-`view.rs` (there are **no more `query.rs` files** — removed in the 1.2.0 migration). `view.rs`
-contains:
-- A "query view" struct — a thin wrapper around `params: Vec<QueryParam>`
-  (`mairie360_api_lib::database::db_interface::QueryParam`) — implementing
-  `ApiRequestDto`: `query_sql()` returns a `&'static str` SQL string (`$1`, `$2`, … placeholders)
-  and `query_params()` returns `&self.params`. Keep a `new(...)` constructor with typed args plus
-  getters that read back out of `params`. The struct must `#[derive(serde::Deserialize, serde::Serialize)]`
-  (`ApiRequestDto: DeserializeOwned`).
-- For read queries, a result struct deriving `serde::Deserialize + serde::Serialize` (no
-  `sqlx::FromRow`).
-
-Endpoints run these through `state.get_smart_db()` (a `SmartDatabase`, cache-aside over Redis):
-- `execute(view)` — writes (`INSERT`/`UPDATE`/`DELETE`), takes the view **by value**, returns
-  `Result<(), ApiLibError>` (**no `rows_affected`** — see below).
-- `fetch_scalar::<T, _>(&view)` — one scalar column decoded directly by sqlx (`i32`, `bool`, …).
-  Used for `RETURNING id` on create and `DELETE … RETURNING …` (0 rows → `DbError::NotFound`).
-- `fetch_one::<T, _>(&view)` / `fetch_all::<T, _>(&view)` — the SQL **must return a single JSON
-  column** (`SELECT to_jsonb(t) FROM (SELECT …) t`); the lib decodes it to `serde_json::Value`
-  then `serde_json::from_value::<T>()`. `fetch_one` on 0 rows → `DbError::NotFound`.
-
-`QueryParam` has no `Option<String>`/`Option<DateTime>` variant — pass `QueryParam::Text(x.unwrap_or_default())`
-and wrap the placeholder in `NULLIF($n, '')` in the SQL to store NULL.
+Write bodies are `#[serde(deny_unknown_fields)]`: a misspelt field is a `400`, never a silent no-op (the PATCH
+dates are `events_start_time` / `events_end_time` like POST and GET; the old `event_*` names are aliases).
+`GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). Only a unique violation maps to
+`409`; any other database error is a `500`. Deleting an event removes its orphan recurrence rule in the same
+statement.
 
 Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500, text body).
 
@@ -185,7 +155,6 @@ Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates event
 `tests/model_test.rs` covers input validation and partial updates without a database.
 
 `i32` is the DB id type; the API layer uses `u64` and casts at the boundary (`x as i32`).
-`src/database/event/update_user_status` has no endpoint wired up (kept for its tests).
 
 ## CI
 
