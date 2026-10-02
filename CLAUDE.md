@@ -55,7 +55,7 @@ CI runs on `main` after the dev release, not part of `cargo test`; they need Doc
 The service under test in these three stacks is `image: ${IMAGE_REF}` (no `build:` block). CI sets `IMAGE_REF` to the
 published `ghcr.io/mairie360/calendar-api:dev-<sha>` image; when it is empty the scripts build `calendar-api:local` from
 `development.Dockerfile` first. That image is distroless (no shell, no curl), so readiness is a `calendar-ready` sidecar
-polling `/health`, and dependent services wait for it with `service_completed_successfully`.
+polling `/ready`, and dependent services wait for it with `service_completed_successfully`.
 
 The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
 `JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
@@ -108,7 +108,10 @@ by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for 
 ### Request routing (`src/main.rs` → `src/endpoints/`)
 
 Three tiers, assembled in `main.rs`:
-1. **Public, unauthenticated**: `/health`, `/` (`hello`), `/swagger-ui/*`, `/api-docs/openapi.json`.
+1. **Public, unauthenticated**: `/health` (liveness, process only), `/ready` (readiness: `SELECT 1` on Postgres and
+   a Redis read, `503` naming the unreachable one), `/` (`hello`), `/swagger-ui/*`, `/api-docs/openapi.json`. The
+   probes are mounted once, outside `/api`. `main.rs` refuses to start when Postgres is still unreachable after
+   15 attempts 2 s apart (MAIR-423).
 2. **`/api` scope wrapped in `JwtMiddleware`** — everything under `endpoints::config` →
    `v1::config`. A valid JWT is required; handlers receive an `AuthenticatedUser` extractor
    exposing `auth_user.id` (the caller's user id).

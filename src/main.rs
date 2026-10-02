@@ -1,8 +1,9 @@
 use actix_web::{middleware, web, App, HttpServer};
 
 use calendar_api::database::pg_url::build_pg_url;
+use calendar_api::database::service::readiness::{check_dependencies, Dependency};
 use calendar_api::endpoints::swagger::ApiDoc;
-use calendar_api::endpoints::{config, health, hello};
+use calendar_api::endpoints::{config, health, hello, ready};
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::security::JwtMiddleware;
@@ -10,6 +11,27 @@ use mairie360_api_lib::state::AppState;
 
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+/// Attempts made to reach PostgreSQL at startup, `STARTUP_DB_RETRY_DELAY` apart.
+const STARTUP_DB_ATTEMPTS: u32 = 15;
+const STARTUP_DB_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Refuses to start without PostgreSQL (MAIR-423): `AppState::new` only logs a failed connection,
+/// and the API would then answer every request with a `500` while looking healthy. Redis is not
+/// required to start: `/ready` reports it.
+async fn wait_for_database(state: &AppState) -> std::io::Result<()> {
+    for attempt in 1..=STARTUP_DB_ATTEMPTS {
+        match check_dependencies(state).await {
+            Ok(()) | Err(Dependency::Redis) => return Ok(()),
+            Err(Dependency::Postgres) => log::warn!(
+                "PostgreSQL unreachable (attempt {attempt}/{STARTUP_DB_ATTEMPTS}), retrying"
+            ),
+        }
+        tokio::time::sleep(STARTUP_DB_RETRY_DELAY).await;
+    }
+    log::error!("PostgreSQL still unreachable after {STARTUP_DB_ATTEMPTS} attempts, exiting");
+    Err(std::io::Error::other("PostgreSQL unreachable at startup"))
+}
 
 //                                        -- MAIN FUNCTION --
 
@@ -27,6 +49,7 @@ async fn main() -> std::io::Result<()> {
     let db_name = get_critical_env_var("DB_NAME");
     let pg_url = build_pg_url(&db_user, &db_password, &db_host, &db_port, &db_name);
     let state = AppState::new(redis_url, pg_url).await;
+    wait_for_database(&state).await?;
     let data = web::Data::new(state);
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");
@@ -45,6 +68,7 @@ async fn main() -> std::io::Result<()> {
             )
             // 2. Endpoints Publics
             .service(health::health)
+            .service(ready::ready)
             .service(hello::hello)
             // 3. Endpoints Protégés par JWT
             .service(
