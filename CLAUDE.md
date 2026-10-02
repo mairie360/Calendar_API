@@ -165,7 +165,9 @@ Tests (`tests/queries/`) hit a real Postgres testcontainer: `Database::new(host)
 Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates events, users (with roles) and groups.
 `tests/model_test.rs` covers input validation and partial updates without a database.
 
-`i32` is the DB id type; the API layer uses `u64` and casts at the boundary (`x as i32`).
+`i32` is the DB id type; the API layer uses `u64` and converts at the boundary with API_lib's `id_to_sql` /
+`id_from_sql` (MAIR-422), never `as`: `src/lib.rs` denies the clippy cast lints, and an event id beyond `INT4` is
+answered `404` by `require_event_access` before any query (`id_to_sql` saturates to `i32::MAX`).
 
 ## CI
 

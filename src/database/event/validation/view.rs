@@ -1,4 +1,4 @@
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{id_to_sql, ApiRequestDto, QueryParam};
 
 use crate::database::event::access::view::ApprovalStatus;
 
@@ -14,8 +14,8 @@ impl SetEventApprovalQueryView {
     pub fn new(event_id: u64, decided_by: u64, status: ApprovalStatus) -> Self {
         Self {
             params: vec![
-                QueryParam::I32(event_id as i32),
-                QueryParam::I32(decided_by as i32),
+                QueryParam::I32(id_to_sql(event_id)),
+                QueryParam::I32(id_to_sql(decided_by)),
                 QueryParam::Text(status.as_db().to_string()),
             ],
         }
@@ -46,8 +46,8 @@ impl CanAssignUserQueryView {
     pub fn new(caller_id: u64, user_id: u64) -> Self {
         Self {
             params: vec![
-                QueryParam::I32(caller_id as i32),
-                QueryParam::I32(user_id as i32),
+                QueryParam::I32(id_to_sql(caller_id)),
+                QueryParam::I32(id_to_sql(user_id)),
             ],
         }
     }

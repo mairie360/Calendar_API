@@ -1,5 +1,6 @@
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
+use mairie360_api_lib::database::db_interface::id_to_sql;
 
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
@@ -70,13 +71,23 @@ pub fn database_error(error: ApiLibError) -> ApiError {
     }
 }
 
+/// An event id beyond `INT4` designates no row: `id_to_sql` would saturate it to `i32::MAX`, a
+/// valid id, so it is answered `404` before any query (MAIR-422).
+fn require_sql_id(event_id: u64) -> Result<(), ApiError> {
+    if i32::try_from(event_id).is_ok() {
+        Ok(())
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
 /// Rejects the caller unless `allowed` accepts its rights: 404 for an unknown event, 403 otherwise.
 fn check_event_access(
     mut access: EventAccess,
     user_id: u64,
     allowed: impl Fn(&EventAccess) -> bool,
 ) -> Result<EventAccess, ApiError> {
-    access.caller_id = user_id as i32;
+    access.caller_id = id_to_sql(user_id);
     if !access.exists {
         return Err(ApiError::NotFound);
     }
@@ -94,6 +105,7 @@ pub async fn require_event_access(
     user_id: u64,
     allowed: impl Fn(&EventAccess) -> bool,
 ) -> Result<EventAccess, ApiError> {
+    require_sql_id(event_id)?;
     let access: EventAccess = state
         .get_smart_db()
         .fetch_one(&EventAccessQueryView::new(event_id, user_id))
@@ -110,6 +122,7 @@ pub async fn require_event_access_in(
     user_id: u64,
     allowed: impl Fn(&EventAccess) -> bool,
 ) -> Result<EventAccess, ApiError> {
+    require_sql_id(event_id)?;
     tx.execute(&LockEventQueryView::new(event_id))
         .await
         .map_err(database_error)?;
