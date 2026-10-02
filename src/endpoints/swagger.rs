@@ -48,6 +48,7 @@ Statuses returned across the API, before the handler runs:
 | --- | --- |
 | `400` | URL segment that is not an integer, missing or malformed query parameter, or malformed JSON body. |
 | `401` | `Authorization` header missing or malformed, invalid or expired JWT, or revoked session. |
+| `429` | The caller exceeded their request quota (per user, see `RATE_LIMIT_PER_SECOND` / `RATE_LIMIT_BURST`); `Retry-After` gives the seconds to wait. |
 | `500` | Database or Redis failure. |
 ",
         contact(
