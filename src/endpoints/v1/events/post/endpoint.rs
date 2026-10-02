@@ -55,7 +55,7 @@ use crate::endpoints::v1::events::validate_event_input;
         ),
         (
             status = 400,
-            description = "Malformed JSON body, unknown field, end not after start, recurrence rule inconsistent with the start date, or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters nor `<` / `>`; `description` at most 5000 characters, no `<` / `>`, no control character other than line breaks and tabs.",
+            description = "Malformed JSON body, unknown field, end not after start, recurrence rule inconsistent with the start date, or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters; `description` at most 5000 characters, no control character other than line breaks and tabs. `<` and `>` are accepted everywhere (e.g. `budget > 10 000 €`) and returned as-is: the fronts escape what they display.",
             body = String,
             content_type = "text/plain",
             example = json!("Bad request.")
