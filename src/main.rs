@@ -2,8 +2,8 @@ use actix_web::{middleware, web, App, HttpServer};
 
 use calendar_api::database::pg_url::build_pg_url;
 use calendar_api::database::service::readiness::{check_dependencies, Dependency};
-use calendar_api::endpoints::swagger::ApiDoc;
-use calendar_api::endpoints::{config, health, hello, ready};
+use calendar_api::endpoints::swagger::{swagger_enabled_from_env, ApiDoc};
+use calendar_api::endpoints::{config, health, ready};
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::security::JwtMiddleware;
@@ -55,25 +55,29 @@ async fn main() -> std::io::Result<()> {
     let port = get_critical_env_var("PORT");
     let bind_address = format!("{}:{}", host, port);
 
+    let swagger_enabled = swagger_enabled_from_env();
+    log::info!("Swagger UI and /api-docs/openapi.json served: {swagger_enabled}");
+
     let server = HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
             .wrap(middleware::Logger::default())
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
-            // 1. Swagger UI et API Docs (Public)
-            .service(
-                SwaggerUi::new("/swagger-ui/{_:.*}")
-                    .url("/api-docs/openapi.json", ApiDoc::openapi()),
-            )
-            // 2. Endpoints Publics
+            // 1. Swagger UI and the OpenAPI document, only when SWAGGER_ENABLED is set (MAIR-424).
+            .configure(|cfg| {
+                if swagger_enabled {
+                    cfg.service(
+                        SwaggerUi::new("/swagger-ui/{_:.*}")
+                            .url("/api-docs/openapi.json", ApiDoc::openapi()),
+                    );
+                }
+            })
+            // 2. Public probes.
             .service(health::health)
             .service(ready::ready)
-            .service(hello::hello)
-            // 3. Endpoints Protégés par JWT
-            .service(
-                web::scope("/api").wrap(JwtMiddleware).configure(config), // Tes routes v1, etc.
-            )
+            // 3. Routes protected by a JWT.
+            .service(web::scope("/api").wrap(JwtMiddleware).configure(config))
     })
     .bind(bind_address)?;
 

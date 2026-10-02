@@ -1,7 +1,7 @@
 use crate::endpoints::health::HealthDoc;
-use crate::endpoints::hello::HelloDoc;
 use crate::endpoints::ready::ReadyDoc;
 use crate::endpoints::v1::doc::V1Doc;
+use mairie360_api_lib::env_manager::get_env_var;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
@@ -72,7 +72,6 @@ Statuses returned across the API, before the handler runs:
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
         (path = "/", api = ReadyDoc),
-        (path = "/", api = HelloDoc),
     ),
     modifiers(&SecurityAddon)
 )]
@@ -96,5 +95,45 @@ impl Modify for SecurityAddon {
                     .build(),
             ),
         )
+    }
+}
+
+/// Environment variable serving Swagger UI and `/api-docs/openapi.json` when set to `true` or `1`
+/// (MAIR-424). Off by default, so a production image does not publish its contract: the dev, ZAP,
+/// k6 and integration stacks enable it, the BFFs read the published npm package instead.
+pub const SWAGGER_ENABLED_ENV: &str = "SWAGGER_ENABLED";
+
+/// Whether `value` (of [`SWAGGER_ENABLED_ENV`]) enables the documentation routes.
+pub fn is_swagger_enabled(value: Option<&str>) -> bool {
+    value.is_some_and(|value| {
+        let value = value.trim();
+        value == "1" || value.eq_ignore_ascii_case("true")
+    })
+}
+
+/// Reads [`SWAGGER_ENABLED_ENV`] from the environment.
+pub fn swagger_enabled_from_env() -> bool {
+    is_swagger_enabled(get_env_var(SWAGGER_ENABLED_ENV).as_deref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_swagger_enabled;
+
+    #[test]
+    fn swagger_is_off_unless_explicitly_enabled() {
+        for value in [
+            None,
+            Some(""),
+            Some("false"),
+            Some("0"),
+            Some("yes"),
+            Some("on"),
+        ] {
+            assert!(!is_swagger_enabled(value), "{value:?}");
+        }
+        for value in [Some("true"), Some("TRUE"), Some(" 1 ")] {
+            assert!(is_swagger_enabled(value), "{value:?}");
+        }
     }
 }
