@@ -1,4 +1,5 @@
 use actix_web::{patch, web, HttpResponse, Responder};
+use mairie360_api_lib::database::db_interface::id_from_sql;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -118,7 +119,7 @@ pub async fn patch_event(
         return Err(ApiError::NotFound);
     }
     if let (Some(rule_id), None) = (current.recurrence_id(), &input.recurrence) {
-        tx.execute(&DeleteOrphanRecurrenceQueryView::new(rule_id as u64))
+        tx.execute(&DeleteOrphanRecurrenceQueryView::new(id_from_sql(rule_id)))
             .await
             .map_err(database_error)?;
     }
