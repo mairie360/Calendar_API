@@ -20,6 +20,10 @@ fi
 export IMAGE_REF
 echo "==> API image under test: $IMAGE_REF"
 
+# Random JWT_SECRET for this run, and the signing helper (MAIR-428).
+# shellcheck source=test_secrets.sh
+source "$(dirname "$0")/test_secrets.sh"
+
 echo "==> [1/4] Starting the stack and the newman collection..."
 docker compose -f "$COMPOSE_FILE" up -d
 

@@ -18,6 +18,12 @@ fi
 export IMAGE_REF
 echo "==> API image under test: $IMAGE_REF"
 
+# Random JWT_SECRET for this run, and the signing helper (MAIR-428).
+# shellcheck source=test_secrets.sh
+source "$(dirname "$0")/test_secrets.sh"
+# Admin token (user 1, seeded by liquibase) ZAP sends on every request, valid for the scan only.
+export ZAP_AUTH_TOKEN="$(sign_jwt 1 admin 7200)"
+
 # Shared CI test files (OpenAPI coverage gate, MAIR-194: ZAP hook and k6 coverage module). CI
 # checks mairie360/CICD out as cicd-repo/; locally it is cloned once at the cicd_version pinned in
 # .github/workflows/cicd.yml (override with CICD_VERSION, e.g. a branch not released yet).

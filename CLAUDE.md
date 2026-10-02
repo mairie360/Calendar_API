@@ -57,8 +57,14 @@ published `ghcr.io/mairie360/calendar-api:dev-<sha>` image; when it is empty the
 `development.Dockerfile` first. That image is distroless (no shell, no curl), so readiness is a `calendar-ready` sidecar
 polling `/ready`, and dependent services wait for it with `service_completed_successfully`.
 
-The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
-`JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
+**No test credential is committed (MAIR-428).** The three scripts source `test_secrets.sh`, which exports a random
+`JWT_SECRET` per run (`openssl rand -hex 32`, an exported value wins) and a `sign_jwt <sub> <role> <ttl>` helper; the
+compose files require it (`${JWT_SECRET:?…}`), so run the scripts rather than `docker compose up` on those files.
+The published image refuses a weak or well-known secret (API_lib 2.0.0); only the local dev `docker-compose.yml`
+keeps `b"secret"`, with `JWT_ALLOW_WEAK_SECRET=true`.
+
+The ZAP scan is authenticated: `security-scan` injects `ZAP_AUTH_TOKEN`, an admin JWT (`sub=1`, 2 h) that
+`security_test.sh` signs with the run's secret, on every request, waits for the `seeder`
 service (`init-test.sql`: plain `User` account 2, `Responsable` 3, user 1 is the Admin created by liquibase) and fails on any alert
 not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://calendar:3002` is required: the spec's
 `servers` are unreachable from the ZAP container. Keep `rules.tsv` identical in every API. ZAP builds its requests
@@ -74,7 +80,7 @@ Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairi
 never reached, or when an operation declaring `security(("jwt" = []))` only got 401/403. `load-test.js` is built on
 `coverage.js` and covers every operation (MAIR-195): GET handlers run in the `reads` scenario (20 VUs) against an
 event created in `setup()`, the other methods in the `writes` scenario (2 VUs), each handler creating and deleting
-its own event so they are order-independent. The script forges its HS256 JWTs (same secret as the stack): the
+its own event so they are order-independent. The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
 validation circuit needs an event created by user 2 (`User`) with user 3 (`Responsable`, sharing group 1000 with
 user 2, both from `init-test.sql`) assigned, then approved by user 3. One `p(95)` threshold per `op` tag (200 ms
 reads, 500 ms writes) and `http_req_failed < 1%`. The spec k6 reads is the one served by the image under test,
@@ -85,8 +91,8 @@ spec's path examples (event 21 with user 51 assigned) so ZAP reaches real rows.
 `tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
 `tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
 committed default (`http://localhost:3002`) stays usable from a host shell. There is no login route here, so the
-collection pre-request script forges the HS256 JWTs itself (claims `sub`/`role`/`exp`, signed with the stack's
-`JWT_SECRET`) for the seeded Admin (user 1) and a plain user (user 2, from `init-test.sql`). The scenario creates
+collection pre-request script forges the HS256 JWTs itself (claims `sub`/`role`/`exp`, signed with the `jwt_secret`
+variable, which the compose file sets to the run's `JWT_SECRET`; empty in `environment.json`) for the seeded Admin (user 1) and a plain user (user 2, from `init-test.sql`). The scenario creates
 its own event and deletes it at the end, so it is replayable against a persistent database.
 
 ### Running the full stack

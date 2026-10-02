@@ -20,13 +20,18 @@ import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3002').replace(/\/+$/, '');
 
-// Same secret as the stack's JWT_SECRET (the literal string `b"secret"`).
-const JWT_SECRET = __ENV.JWT_SECRET || 'b"secret"';
+// The stack's JWT_SECRET, random per run (performance_test.sh, MAIR-428): no committed default.
+const JWT_SECRET = __ENV.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is not set: run ./performance_test.sh, which generates it');
+}
+/** Token lifetime: the whole run, setup and teardown included. */
+const JWT_TTL_SECONDS = 2 * 60 * 60;
 
-/** HS256 JWT for a user seeded by liquibase / init-test.sql, valid until 2100. */
+/** HS256 JWT for a user seeded by liquibase / init-test.sql, valid for the run. */
 function jwt(sub, role) {
   const header = encoding.b64encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }), 'rawurl');
-  const payload = encoding.b64encode(JSON.stringify({ sub: String(sub), role, exp: 4102444800 }), 'rawurl');
+  const payload = encoding.b64encode(JSON.stringify({ sub: String(sub), role, exp: Math.floor(Date.now() / 1000) + JWT_TTL_SECONDS }), 'rawurl');
   return `${header}.${payload}.${crypto.hmac('sha256', JWT_SECRET, `${header}.${payload}`, 'base64rawurl')}`;
 }
 
