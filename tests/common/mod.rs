@@ -132,3 +132,21 @@ pub async fn approval_decision(db: &Database, event_id: u64) -> (String, Option<
         row["at"].as_bool().unwrap(),
     )
 }
+
+/// Archives a user: its tokens are then refused by `JwtMiddleware`.
+pub async fn archive_user(db: &Database, user_id: u64) {
+    db.execute(&fixture(format!(
+        "UPDATE users SET is_archived = TRUE, status = 'archived' WHERE id = {user_id}"
+    )))
+    .await
+    .unwrap();
+}
+
+/// Assigns `user_id` to `event_id` directly in the database.
+pub async fn add_member(db: &Database, event_id: u64, user_id: u64) {
+    db.execute(&fixture(format!(
+        "INSERT INTO event_members (event_id, user_id) VALUES ({event_id}, {user_id})"
+    )))
+    .await
+    .unwrap();
+}
