@@ -1,4 +1,5 @@
 use actix_web::{post, web, HttpResponse, Responder};
+use mairie360_api_lib::database::db_interface::id_from_sql;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -95,6 +96,6 @@ pub async fn create_event(
         .map_err(database_error)?;
 
     Ok(HttpResponse::Created().json(PostEventResultView {
-        event_id: event_id as u64,
+        event_id: id_from_sql(event_id),
     }))
 }

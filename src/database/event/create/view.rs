@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 
 use crate::database::event::model::EventInput;
 
@@ -14,13 +16,13 @@ pub struct CreateEventQueryView {
 
 impl CreateEventQueryView {
     pub fn new(creator_id: u64, input: &EventInput) -> Self {
-        let mut params = vec![QueryParam::I32(creator_id as i32)];
+        let mut params = vec![QueryParam::I32(id_to_sql(creator_id))];
         params.extend(input.query_params());
         Self { params }
     }
 
     pub fn creator_id(&self) -> u64 {
-        self.params[0].as_i32() as u64
+        id_from_sql(self.params[0].as_i32())
     }
 
     pub fn name(&self) -> &str {

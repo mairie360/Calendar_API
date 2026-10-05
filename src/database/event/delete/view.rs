@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 
 /// Deletes event `$1` (its members cascade) and, in the same statement, its recurrence rule when
 /// no other event uses it.
@@ -12,12 +14,12 @@ pub struct DeleteEventQueryView {
 impl DeleteEventQueryView {
     pub fn new(event_id: u64) -> Self {
         Self {
-            params: vec![QueryParam::I32(event_id as i32)],
+            params: vec![QueryParam::I32(id_to_sql(event_id))],
         }
     }
 
     pub fn event_id(&self) -> u64 {
-        self.params[0].as_i32() as u64
+        id_from_sql(self.params[0].as_i32())
     }
 }
 
