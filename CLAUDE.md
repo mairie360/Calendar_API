@@ -64,7 +64,9 @@ not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://cal
 `servers` are unreachable from the ZAP container. Keep `rules.tsv` identical in every API. ZAP builds its requests
 from the spec examples, so an example that does not deserialize (e.g. an enum in the wrong case) leaves the route
 fuzzed only on its `400`. Every text field goes through `validate_event_input` (length matching the column, no
-control character, no `<` / `>`): a `500` or a `<script>` echoed back fails the job.
+control character): a `500` fails the job. `<` and `>` are **accepted** (MAIR-426, « budget > 10 000 € »): the API
+serves JSON or text with `nosniff`, escaping belongs to the fronts, so the XSS rules (40012, 40014, 40016, 40017)
+are `IGNORE`d in `.zap/rules.tsv` with that justification. Never filter markup in an API to quiet ZAP.
 
 Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairie360/CICD `tests/`, available as
 `cicd-repo/` (checked out by CI, cloned by the scripts at the pinned `cicd_version` otherwise, override with

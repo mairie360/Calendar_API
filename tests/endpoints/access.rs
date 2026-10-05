@@ -318,3 +318,37 @@ async fn an_id_beyond_int4_is_not_an_alias_of_a_smaller_one() {
         assert_eq!(status_of!(app, request.insert_header(bearer(creator))), 404);
     }
 }
+
+#[tokio::test]
+#[serial]
+async fn angle_brackets_are_stored_and_returned_as_is() {
+    let ctx = TestContext::new().await;
+    let creator = create_user(&ctx.db, "Creator", Some("Maire")).await;
+    let app = init_app!(ctx);
+    let mut body = new_event_body("Public");
+    body["name"] = json!("Budget > 10 000 € <3");
+    body["description"] = json!("Si recettes < dépenses :\n-> report");
+
+    let created: serde_json::Value = actix_web::test::call_and_read_body_json(
+        &app,
+        TestRequest::post()
+            .uri("/api/v1/events/")
+            .insert_header(bearer(creator))
+            .set_json(body)
+            .to_request(),
+    )
+    .await;
+    let event: serde_json::Value = actix_web::test::call_and_read_body_json(
+        &app,
+        TestRequest::get()
+            .uri(&format!("/api/v1/events/{}/", created["event_id"]))
+            .insert_header(bearer(creator))
+            .to_request(),
+    )
+    .await;
+    assert_eq!(event["name"], json!("Budget > 10 000 € <3"));
+    assert_eq!(
+        event["description"],
+        json!("Si recettes < dépenses :\n-> report")
+    );
+}

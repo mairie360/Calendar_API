@@ -8,8 +8,7 @@ use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PostEventView {
-    /// Event title. Not blank once trimmed, at most 150 characters, no control character, no `<`
-    /// or `>`.
+    /// Event title. Not blank once trimmed, at most 150 characters, no control character.
     #[schema(min_length = 1, max_length = 150, example = "Conseil municipal")]
     pub name: String,
     /// Description libre, ou absente.
@@ -25,7 +24,7 @@ pub struct PostEventView {
     pub visibility: Option<EventVisibility>,
     /// `other` par défaut.
     pub category: Option<EventCategory>,
-    /// Organising service, at most 128 characters, no control character, no `<` or `>`.
+    /// Organising service, at most 128 characters, no control character.
     #[schema(max_length = 128, example = "Secrétariat général")]
     pub service: Option<String>,
     /// Lieu de l'événement.
