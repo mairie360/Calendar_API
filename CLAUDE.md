@@ -100,7 +100,10 @@ API, port 3002), `postgres` (via `ghcr.io/mairie360/database`), `liquibase` (app
 `main.rs` reads these via `get_critical_env_var` (the process **panics** if any is missing):
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `HOST`, `PORT`.
 The Postgres URL is assembled from the `DB_*` parts by `database::pg_url::build_pg_url`, which
-percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `SWAGGER_ENABLED` (`true`/`1`) serves Swagger UI and the OpenAPI document. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
+percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `SWAGGER_ENABLED` (`true`/`1`) serves Swagger UI and the OpenAPI document. `RATE_LIMIT_PER_SECOND` (default 10, `0` disables) and
+`RATE_LIMIT_BURST` (default 50) set the per-user quota of `/api` (MAIR-425, `endpoints/rate_limit.rs`): `actix-governor`
+keyed by the authenticated user id, mounted *inside* `JwtMiddleware` (the BFFs share a few pod IPs, so a per-IP
+limit would throttle all their users together), `429` + `Retry-After`. The k6 and ZAP stacks disable it. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
 by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
@@ -151,7 +154,8 @@ the resulting `approval_status` and `permissions`.
 
 Write bodies are `#[serde(deny_unknown_fields)]`: a misspelt field is a `400`, never a silent no-op (the PATCH
 dates are `events_start_time` / `events_end_time` like POST and GET; the old `event_*` names are aliases).
-`GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). Database errors go through
+`GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). That period cap is the bound of the list (MAIR-425): no
+pagination, a mairie's agenda over one year stays small. Database errors go through
 `endpoints/error.rs::database_error` (MAIR-421): unique / foreign-key violation → `409`, no row → `404`, anything
 else → `500`, each logged with the `log` crate (`env_logger`, level from `RUST_LOG`, `info` by default). Never
 `eprintln!`, never a client error for a server failure. Deleting an event removes its orphan recurrence rule in the same
