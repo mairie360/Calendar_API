@@ -96,6 +96,9 @@ API, port 3002), `postgres` (via `ghcr.io/mairie360/database`), `liquibase` (app
 **schema is not defined in this repo**), `seeder` (`init-test.sql`), `redis`, and `nginx`
 (reverse proxy at `calendar.development.mairie360.fr`). `development.Dockerfile` runs
 `cargo watch`; `Dockerfile` is the release build into a distroless `:nonroot` image (uid 65532, guarded by `tests/dockerfile_test.rs`).
+Both Dockerfiles pin the template's `rust:1.99` image by digest, build with `--locked` and cache the dependencies in
+a layer keyed on `Cargo.toml` + `Cargo.lock` (MAIR-427). Every advisory ignored in `.cargo/audit.toml` states why it
+does not apply here; add the reason with any new entry.
 
 ## Required environment variables
 
@@ -124,8 +127,8 @@ Three tiers, assembled in `main.rs`:
    exposing `auth_user.id` (the caller's user id).
 3. Route tree: `/api/v1/events` (POST create, `/{event_id}/` GET/PATCH/DELETE, `/{event_id}/validation`
    PATCH, `/{event_id}/members/` GET/POST + `/{member_id}/` DELETE), `/api/v1/calendar` (GET, time-range
-   query), `/api/v1/params/*` (currently a `501 Not Implemented` catch-all). Published paths are relative to
-   `/api`; `tests/routing_test.rs` checks each published operation hits a mounted route.
+   query); the template's `/api/v1/params/*` `501` placeholder was removed (MAIR-427). Published paths are
+   relative to `/api`; `tests/routing_test.rs` checks each published operation hits a mounted route.
 
 ### Events model and access rules
 
