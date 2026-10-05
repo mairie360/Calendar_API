@@ -100,7 +100,7 @@ API, port 3002), `postgres` (via `ghcr.io/mairie360/database`), `liquibase` (app
 `main.rs` reads these via `get_critical_env_var` (the process **panics** if any is missing):
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `HOST`, `PORT`.
 The Postgres URL is assembled from the `DB_*` parts by `database::pg_url::build_pg_url`, which
-percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
+percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `SWAGGER_ENABLED` (`true`/`1`) serves Swagger UI and the OpenAPI document. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
 by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
@@ -109,7 +109,9 @@ by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for 
 
 Three tiers, assembled in `main.rs`:
 1. **Public, unauthenticated**: `/health` (liveness, process only), `/ready` (readiness: `SELECT 1` on Postgres and
-   a Redis read, `503` naming the unreachable one), `/` (`hello`), `/swagger-ui/*`, `/api-docs/openapi.json`. The
+   a Redis read, `503` naming the unreachable one), and `/swagger-ui/*` + `/api-docs/openapi.json` **only when
+   `SWAGGER_ENABLED=true`** (MAIR-424, off by default: every compose stack turns it on, a production instance must
+   not). The template's `POST /` hello route is gone. The
    probes are mounted once, outside `/api`. `AppState::new` (lib 3.0.0) refuses to start when Postgres is still
    unreachable after `DB_CONNECT_TIMEOUT` seconds (default 30, MAIR-423): it panics.
 2. **`/api` scope wrapped in `JwtMiddleware`** — everything under `endpoints::config` →
