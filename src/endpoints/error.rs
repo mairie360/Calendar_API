@@ -1,6 +1,8 @@
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartTransaction;
 
 use crate::database::event::access::view::{EventAccess, EventAccessQueryView, LockEventQueryView};
@@ -44,10 +46,28 @@ impl ResponseError for ApiError {
     }
 }
 
-/// Journalise l'erreur de base de données et renvoie une erreur générique.
-pub fn database_error<E: std::fmt::Debug>(error: E) -> ApiError {
-    eprintln!("{:?}", error);
-    ApiError::DatabaseError
+/// Maps a database error to the status it deserves, and logs it (MAIR-421):
+///
+/// - unique or foreign-key violation: `409`, logged as a warning (a concurrent write won);
+/// - no row where one was expected: `404`, logged at debug level;
+/// - anything else (connection, SQL, mapping): `500`, logged as an error with its full cause.
+///
+/// The response body stays generic: Postgres messages name tables and constraints.
+pub fn database_error(error: ApiLibError) -> ApiError {
+    match &error {
+        ApiLibError::Database(DbError::UniqueViolation(_) | DbError::ForeignKeyViolation(_)) => {
+            log::warn!(target: "calendar_api::database", "constraint violation: {error:?}");
+            ApiError::Conflict
+        }
+        ApiLibError::Database(DbError::NotFound) => {
+            log::debug!(target: "calendar_api::database", "no matching row: {error:?}");
+            ApiError::NotFound
+        }
+        _ => {
+            log::error!(target: "calendar_api::database", "database failure: {error:?}");
+            ApiError::DatabaseError
+        }
+    }
 }
 
 /// Rejects the caller unless `allowed` accepts its rights: 404 for an unknown event, 403 otherwise.
@@ -98,4 +118,45 @@ pub async fn require_event_access_in(
         .await
         .map_err(database_error)?;
     check_event_access(access, user_id, allowed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn db(error: DbError) -> ApiLibError {
+        ApiLibError::Database(error)
+    }
+
+    #[test]
+    fn database_errors_are_mapped_by_kind() {
+        assert_eq!(
+            database_error(db(DbError::UniqueViolation("events_pkey".into()))),
+            ApiError::Conflict
+        );
+        assert_eq!(
+            database_error(db(DbError::ForeignKeyViolation("fk_user".into()))),
+            ApiError::Conflict
+        );
+        assert_eq!(database_error(db(DbError::NotFound)), ApiError::NotFound);
+        assert_eq!(
+            database_error(db(DbError::Internal("pool closed".into()))),
+            ApiError::DatabaseError
+        );
+        assert_eq!(
+            database_error(db(DbError::MappingError("bad row".into()))),
+            ApiError::DatabaseError
+        );
+    }
+
+    #[actix_web::test]
+    async fn error_bodies_never_leak_the_cause() {
+        let response =
+            database_error(db(DbError::Internal("relation \"events\"".into()))).error_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = actix_web::body::to_bytes(response.into_body())
+            .await
+            .unwrap();
+        assert_eq!(body, "An error occurred while accessing the database.");
+    }
 }

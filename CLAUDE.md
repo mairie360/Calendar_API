@@ -146,8 +146,10 @@ the resulting `approval_status` and `permissions`.
 
 Write bodies are `#[serde(deny_unknown_fields)]`: a misspelt field is a `400`, never a silent no-op (the PATCH
 dates are `events_start_time` / `events_end_time` like POST and GET; the old `event_*` names are aliases).
-`GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). Only a unique violation maps to
-`409`; any other database error is a `500`. Deleting an event removes its orphan recurrence rule in the same
+`GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). Database errors go through
+`endpoints/error.rs::database_error` (MAIR-421): unique / foreign-key violation → `409`, no row → `404`, anything
+else → `500`, each logged with the `log` crate (`env_logger`, level from `RUST_LOG`, `info` by default). Never
+`eprintln!`, never a client error for a server failure. Deleting an event removes its orphan recurrence rule in the same
 statement.
 
 Every write on an existing event (PATCH, DELETE, members POST/DELETE, PATCH validation) runs in **one
