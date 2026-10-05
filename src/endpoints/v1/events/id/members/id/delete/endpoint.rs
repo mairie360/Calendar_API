@@ -6,7 +6,7 @@ use mairie360_api_lib::state::AppState;
 
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::remove_member::view::RemoveUserFromEventQueryView;
-use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
 
 #[utoipa::path(
     delete,
@@ -75,19 +75,19 @@ pub async fn remove_event_member(
     path: web::Path<(u64, u64)>,
 ) -> Result<impl Responder, ApiError> {
     let (event_id, member_id) = path.into_inner();
-    require_event_access(
-        &state,
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    require_event_access_in(
+        &mut tx,
         event_id,
         auth_user.id,
         EventAccess::can_manage_members,
     )
     .await?;
 
-    let db = state.get_smart_db();
     // `RETURNING user_id` yields a bare integer column: it must be read as a scalar
     // (`fetch_all` expects a JSON row and failed with a column decode error, hence a `500`).
     // No row means the user was not assigned to the event.
-    match db
+    match tx
         .fetch_scalar::<i32, _>(&RemoveUserFromEventQueryView::new(member_id, event_id))
         .await
     {
@@ -95,6 +95,7 @@ pub async fn remove_event_member(
         Err(ApiLibError::Database(DbError::NotFound)) => return Err(ApiError::NotFound),
         Err(error) => return Err(database_error(error)),
     }
+    tx.commit().await.map_err(database_error)?;
 
     Ok(HttpResponse::NoContent().finish())
 }

@@ -5,7 +5,7 @@ use mairie360_api_lib::state::AppState;
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::edit::view::{DeleteOrphanRecurrenceQueryView, EditEventQueryView};
 use crate::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
-use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
 use crate::endpoints::v1::events::id::patch::view::PatchEventView;
 use crate::endpoints::v1::events::validate_event_input;
 
@@ -94,11 +94,13 @@ pub async fn patch_event(
     view: web::Json<PatchEventView>,
 ) -> Result<impl Responder, ApiError> {
     let event_id = event_id.into_inner();
+    // One transaction: the access check, the update and the deletion of the detached recurrence
+    // rule are applied together or not at all (MAIR-420).
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
     let access =
-        require_event_access(&state, event_id, auth_user.id, EventAccess::can_edit).await?;
+        require_event_access_in(&mut tx, event_id, auth_user.id, EventAccess::can_edit).await?;
 
-    let db = state.get_smart_db();
-    let current: Vec<GetEventQueryResultView> = db
+    let current: Vec<GetEventQueryResultView> = tx
         .fetch_all(&GetEventQueryView::new(event_id))
         .await
         .map_err(database_error)?;
@@ -108,7 +110,7 @@ pub async fn patch_event(
     validate_event_input(&input)?;
 
     let reset_approval = access.edit_needs_new_approval() && input.changes_schedule(&current_input);
-    let updated: bool = db
+    let updated: bool = tx
         .fetch_scalar(&EditEventQueryView::new(event_id, &input, reset_approval))
         .await
         .map_err(database_error)?;
@@ -116,10 +118,11 @@ pub async fn patch_event(
         return Err(ApiError::NotFound);
     }
     if let (Some(rule_id), None) = (current.recurrence_id(), &input.recurrence) {
-        db.execute(DeleteOrphanRecurrenceQueryView::new(rule_id as u64))
+        tx.execute(&DeleteOrphanRecurrenceQueryView::new(rule_id as u64))
             .await
             .map_err(database_error)?;
     }
+    tx.commit().await.map_err(database_error)?;
 
     Ok(HttpResponse::NoContent().finish())
 }

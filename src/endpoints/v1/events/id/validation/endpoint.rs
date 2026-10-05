@@ -6,7 +6,7 @@ use mairie360_api_lib::state::AppState;
 
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::validation::view::SetEventApprovalQueryView;
-use crate::endpoints::error::{database_error, require_event_access, ApiError};
+use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
 use crate::endpoints::v1::events::id::validation::view::UpdateEventValidationView;
 
 #[utoipa::path(
@@ -93,11 +93,13 @@ pub async fn update_event_validation(
     view: web::Json<UpdateEventValidationView>,
 ) -> Result<impl Responder, ApiError> {
     let event_id = event_id.into_inner();
-    require_event_access(&state, event_id, auth_user.id, EventAccess::can_validate).await?;
+    // The Responsable's rights (membership, group, pending status) are checked on the locked row,
+    // in the transaction of the decision (MAIR-420).
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    require_event_access_in(&mut tx, event_id, auth_user.id, EventAccess::can_validate).await?;
 
     // The update only applies to a still pending event: no row means a concurrent decision.
-    match state
-        .get_smart_db()
+    match tx
         .fetch_scalar::<i32, _>(&SetEventApprovalQueryView::new(
             event_id,
             auth_user.id,
@@ -105,8 +107,10 @@ pub async fn update_event_validation(
         ))
         .await
     {
-        Ok(_) => Ok(HttpResponse::NoContent().finish()),
-        Err(ApiLibError::Database(DbError::NotFound)) => Err(ApiError::Conflict),
-        Err(error) => Err(database_error(error)),
+        Ok(_) => {}
+        Err(ApiLibError::Database(DbError::NotFound)) => return Err(ApiError::Conflict),
+        Err(error) => return Err(database_error(error)),
     }
+    tx.commit().await.map_err(database_error)?;
+    Ok(HttpResponse::NoContent().finish())
 }

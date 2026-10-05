@@ -6,7 +6,7 @@ use crate::database::event::model::EventInput;
 /// `true` if the event exists. With `reset_approval` (`$15`), the event goes back to `pending` and
 /// loses its decision. A detached rule stays in the database: `DeleteOrphanRecurrenceQueryView`
 /// deletes it afterwards (deleting it in the same statement would conflict with the ON DELETE SET
-/// NULL on the event row this statement updates).
+/// NULL on the event row this statement updates). The PATCH handler runs both in one transaction.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EditEventQueryView {
     params: Vec<QueryParam>,
