@@ -106,6 +106,7 @@ const spec = loadSpec();
 
 const readHandlers = {
   'GET /health': ({ request }) => check(request(), { 'health 200': (r) => r.status === 200 }),
+  'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
   'GET /api/v1/calendar': ({ request }) =>
     check(request({ query: WINDOW }), { 'calendar 200': (r) => r.status === 200 }),
   'GET /api/v1/events/{event_id}/': ({ request, data }) =>

@@ -2,7 +2,7 @@ use actix_web::{middleware, web, App, HttpServer};
 
 use calendar_api::database::pg_url::build_pg_url;
 use calendar_api::endpoints::swagger::ApiDoc;
-use calendar_api::endpoints::{config, health, hello};
+use calendar_api::endpoints::{config, health, hello, ready};
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::security::JwtMiddleware;
@@ -26,6 +26,8 @@ async fn main() -> std::io::Result<()> {
     let db_port = get_critical_env_var("DB_PORT");
     let db_name = get_critical_env_var("DB_NAME");
     let pg_url = build_pg_url(&db_user, &db_password, &db_host, &db_port, &db_name);
+    // Panics when PostgreSQL stays unreachable for `DB_CONNECT_TIMEOUT` seconds (MAIR-423): the pod
+    // crashes and is restarted instead of answering `500` on every route.
     let state = AppState::new(redis_url, pg_url).await;
     let data = web::Data::new(state);
     let host = get_critical_env_var("HOST");
@@ -45,6 +47,7 @@ async fn main() -> std::io::Result<()> {
             )
             // 2. Endpoints Publics
             .service(health::health)
+            .service(ready::ready)
             .service(hello::hello)
             // 3. Endpoints Protégés par JWT
             .service(

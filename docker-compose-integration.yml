@@ -119,7 +119,8 @@ services:
         condition: service_healthy
 
   # The published image is distroless (no shell, no curl), so the API cannot carry its own
-  # healthcheck: this sidecar polls /health and the services that need the API wait for it to
+  # healthcheck: this sidecar polls /ready (PostgreSQL and Redis reachable, MAIR-423) and the
+  # services that need the API wait for it to
   # complete instead.
   calendar-ready:
     image: curlimages/curl:latest
@@ -127,7 +128,7 @@ services:
       calendar:
         condition: service_started
     command: >
-      sh -c 'until curl -fsS http://calendar:3002/health >/dev/null; do
+      sh -c 'until curl -fsS http://calendar:3002/ready >/dev/null; do
       echo "waiting for calendar..."; sleep 2; done; echo "calendar ready"'
     networks:
       - backend
