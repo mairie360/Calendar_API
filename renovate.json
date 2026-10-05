@@ -5,12 +5,23 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^\\.github/workflows/cicd\\.yml$"],
+      "fileMatch": [
+        "^\\.github/workflows/cicd\\.yml$"
+      ],
       "matchStrings": [
         "cicd_version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ],
       "depNameTemplate": "mairie360/CICD",
       "datasourceTemplate": "github-tags"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The reusable workflow ref (`uses: ...@vX`) and its `cicd_version` input must move together (MAIR-427).",
+      "matchDepNames": [
+        "mairie360/CICD"
+      ],
+      "groupName": "mairie360/CICD"
     }
   ]
 }

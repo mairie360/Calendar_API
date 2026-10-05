@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -11,19 +13,23 @@ pub struct GetEventMemberQueryView {
 impl GetEventMemberQueryView {
     pub fn new(event_id: u64) -> Self {
         Self {
-            params: vec![QueryParam::I32(event_id as i32)],
+            params: vec![QueryParam::I32(id_to_sql(event_id))],
         }
     }
 
     pub fn event_id(&self) -> u64 {
-        self.params[0].as_i32() as u64
+        id_from_sql(self.params[0].as_i32())
     }
 }
 
 impl ApiRequestDto for GetEventMemberQueryView {
     fn query_sql(&self) -> &'static str {
+        // The approval is taken for the whole event: every member carries the event's status.
         "SELECT to_jsonb(t) FROM (
-            SELECT user_id, validation_status FROM event_members WHERE event_id = $1
+            SELECT em.user_id, e.approval_status AS validation_status
+            FROM event_members em JOIN events e ON e.id = em.event_id
+            WHERE em.event_id = $1
+            ORDER BY em.user_id
          ) t"
     }
 
@@ -38,7 +44,7 @@ impl Display for GetEventMemberQueryView {
     }
 }
 
-/// Statut de validation d'un participant : `validated`, `refused` ou `pending`.
+/// Approval status of the event, repeated on each member: `validated`, `refused` or `pending`.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EventValidationStatus {

@@ -27,7 +27,8 @@ impl EventCategory {
     }
 }
 
-/// Visibilité d'un événement : `Public` (par défaut) ou `Private`.
+/// Visibility of an event: `Public` (default) is readable by every authenticated user and listed in
+/// everyone's calendar, `Private` only by its members and its creator.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum EventVisibility {
     #[default]
@@ -36,6 +37,15 @@ pub enum EventVisibility {
 }
 
 impl EventVisibility {
+    /// Reads `events.visibility`; anything but `private` is public.
+    pub fn from_db(value: &str) -> Self {
+        if value == "private" {
+            EventVisibility::Private
+        } else {
+            EventVisibility::Public
+        }
+    }
+
     pub fn as_db(&self) -> &'static str {
         match self {
             EventVisibility::Public => "public",
@@ -114,6 +124,15 @@ pub struct EventInput {
 }
 
 impl EventInput {
+    /// True when `self` moves the event compared to `other`: dates, recurrence or location. Such a
+    /// change sends an approved or refused event back to `pending`.
+    pub fn changes_schedule(&self, other: &EventInput) -> bool {
+        self.start != other.start
+            || self.end != other.end
+            || self.recurrence != other.recurrence
+            || self.location != other.location
+    }
+
     /// Paramètres `$2` à `$14` communs aux vues de création et de modification.
     pub fn query_params(&self) -> Vec<QueryParam> {
         let recurrence = self.recurrence.as_ref();
@@ -132,7 +151,9 @@ impl EventInput {
                     .map(|r| r.frequency.as_str().to_string())
                     .unwrap_or_default(),
             ),
-            QueryParam::I32(recurrence.map(|r| r.interval as i32).unwrap_or(1)),
+            QueryParam::I32(
+                recurrence.map_or(1, |r| i32::try_from(r.interval).unwrap_or(i32::MAX)),
+            ),
             QueryParam::Text(
                 recurrence
                     .and_then(|r| r.days_of_week.as_ref())
@@ -174,23 +195,20 @@ macro_rules! recurrence_json_sql {
     };
 }
 
-/// Vrai si l'événement `$1` doit être validé par un responsable : son créateur n'a que les rôles User ou
-/// Guest, et un membre Responsable de l'événement partage un groupe avec lui.
+/// True when the creator given as an SQL expression (e.g. `"$1"`) needs a Responsable's approval
+/// for their events: they only have the User or Guest roles.
 #[macro_export]
-macro_rules! event_requires_approval_sql {
-    () => {
-        "(EXISTS (SELECT 1 FROM events ev JOIN user_roles ur ON ur.user_id = ev.created_by \
-                JOIN roles r ON r.id = ur.role_id WHERE ev.id = $1 AND r.name IN ('User', 'Guest')) \
-          AND NOT EXISTS (SELECT 1 FROM events ev JOIN user_roles ur ON ur.user_id = ev.created_by \
-                JOIN roles r ON r.id = ur.role_id \
-                WHERE ev.id = $1 AND r.name IN ('Admin', 'Maire', 'Responsable')) \
-          AND EXISTS (SELECT 1 FROM events ev \
-                JOIN event_members m ON m.event_id = ev.id \
-                JOIN user_roles ur ON ur.user_id = m.user_id \
-                JOIN roles r ON r.id = ur.role_id AND r.name = 'Responsable' \
-                JOIN group_members member_group ON member_group.user_id = m.user_id \
-                JOIN group_members creator_group ON creator_group.group_id = member_group.group_id \
-                    AND creator_group.user_id = ev.created_by \
-                WHERE ev.id = $1))"
+macro_rules! creator_requires_approval_sql {
+    ($creator:literal) => {
+        concat!(
+            "(EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
+                WHERE ur.user_id = ",
+            $creator,
+            " AND r.name IN ('User', 'Guest')) \
+              AND NOT EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
+                WHERE ur.user_id = ",
+            $creator,
+            " AND r.name IN ('Admin', 'Maire', 'Responsable')))"
+        )
     };
 }

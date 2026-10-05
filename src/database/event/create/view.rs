@@ -1,11 +1,14 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 
 use crate::database::event::model::EventInput;
 
-/// Crée un événement dont l'utilisateur `$1` est créateur et propriétaire, avec sa règle de répétition
-/// éventuelle, et renvoie son identifiant.
+/// Creates an event whose creator and owner is user `$1`, with its recurrence rule if any, and
+/// returns its id. The event starts `pending` when its creator needs a Responsable's approval
+/// (User or Guest only), `validated` otherwise.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CreateEventQueryView {
     params: Vec<QueryParam>,
@@ -13,13 +16,13 @@ pub struct CreateEventQueryView {
 
 impl CreateEventQueryView {
     pub fn new(creator_id: u64, input: &EventInput) -> Self {
-        let mut params = vec![QueryParam::I32(creator_id as i32)];
+        let mut params = vec![QueryParam::I32(id_to_sql(creator_id))];
         params.extend(input.query_params());
         Self { params }
     }
 
     pub fn creator_id(&self) -> u64 {
-        self.params[0].as_i32() as u64
+        id_from_sql(self.params[0].as_i32())
     }
 
     pub fn name(&self) -> &str {
@@ -39,9 +42,13 @@ impl ApiRequestDto for CreateEventQueryView {
                 RETURNING id \
              ) \
              INSERT INTO events (name, description, start_date, end_date, visibility, category, \
-                service_label, location, created_by, owner_id, recurrence_id, is_exception) \
+                service_label, location, created_by, owner_id, recurrence_id, is_exception, \
+                approval_status) \
              VALUES ($2, NULLIF($3, ''), $4, $5, $6::event_visibility, $7, NULLIF($8, ''), \
-                NULLIF($9, ''), $1, $1, (SELECT id FROM rule), CASE WHEN $10 THEN false END) \
+                NULLIF($9, ''), $1, $1, (SELECT id FROM rule), CASE WHEN $10 THEN false END, \
+                (CASE WHEN ",
+            crate::creator_requires_approval_sql!("$1"),
+            " THEN 'pending' ELSE 'validated' END)::event_validation_status) \
              RETURNING id"
         )
     }

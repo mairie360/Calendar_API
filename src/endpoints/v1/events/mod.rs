@@ -16,12 +16,11 @@ pub const MAX_LOCATION_LENGTH: usize = 255;
 /// `events.description` is `TEXT`, capped to keep the payloads reasonable.
 pub const MAX_DESCRIPTION_LENGTH: usize = 5000;
 
-/// A label displayed as-is by the fronts: at most `max` characters, no control character (Postgres
-/// rejects NUL bytes) and no `<` / `>` (echoed back unescaped in the JSON responses).
+/// A single-line label: at most `max` characters and no control character (Postgres rejects NUL
+/// bytes). `<` and `>` are ordinary text (« budget > 10 000 € », « -> »): the API serves JSON with
+/// `nosniff`, escaping is the job of the fronts that render it (MAIR-426).
 fn is_valid_label(value: &str, max: usize) -> bool {
-    value.chars().count() <= max
-        && !value.chars().any(char::is_control)
-        && !value.contains(['<', '>'])
+    value.chars().count() <= max && !value.chars().any(char::is_control)
 }
 
 /// A free-text description: like a label, but line breaks and tabs are allowed.
@@ -30,7 +29,6 @@ fn is_valid_description(value: &str) -> bool {
         && !value
             .chars()
             .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
-        && !value.contains(['<', '>'])
 }
 
 /// Rules shared by event creation and update.
@@ -98,18 +96,23 @@ mod tests {
     }
 
     #[test]
-    fn rejects_blank_long_nul_and_markup_names() {
+    fn rejects_blank_long_and_nul_names() {
         assert!(validate_event_input(&event("  ")).is_err());
         assert!(validate_event_input(&event(&"a".repeat(151))).is_err());
         assert!(validate_event_input(&event("Conseil\0")).is_err());
-        assert!(validate_event_input(&event("<script>alert(1);</script>")).is_err());
     }
 
     #[test]
-    fn rejects_markup_and_nul_in_optional_fields() {
-        let mut input = event("Conseil municipal");
-        input.location = Some("<script>alert(1);</script>".to_string());
-        assert!(validate_event_input(&input).is_err());
+    fn accepts_angle_brackets_in_every_text_field() {
+        let mut input = event("Budget > 10 000 € <3");
+        input.service = Some("Urbanisme -> voirie".to_string());
+        input.location = Some("Salle <A>".to_string());
+        input.description = Some("Si recettes < dépenses :\n-> report".to_string());
+        assert!(validate_event_input(&input).is_ok());
+    }
+
+    #[test]
+    fn rejects_nul_in_optional_fields() {
         let mut input = event("Conseil municipal");
         input.service = Some("Secr\0".to_string());
         assert!(validate_event_input(&input).is_err());

@@ -1,5 +1,13 @@
+# Every ignored advisory carries why it does not apply to this API (MAIR-427). Re-check each one
+# when its dependency path changes (`cargo tree -i <crate>`), and drop it once a fixed version lands.
 [advisories]
 ignore = [
+    # rsa 0.9 (Marvin attack, timing side channel on RSA *decryption and signing* with a private
+    # key; no fixed release). Pulled by jsonwebtoken through mairie360_api_lib, which only
+    # *verifies* RS256 Keycloak signatures with public keys: no private-key operation runs here.
     "RUSTSEC-2023-0071",
-    "RUSTSEC-2026-0258"
+    # h2 0.3 (unbounded empty DATA frames, an HTTP/2 denial of service). Pulled by actix-http,
+    # whose HTTP/2 server is only used behind TLS (`bind_rustls` / `bind_openssl`): the API binds
+    # plain HTTP/1.1 (`HttpServer::bind`), so h2 never parses a frame.
+    "RUSTSEC-2026-0258",
 ]

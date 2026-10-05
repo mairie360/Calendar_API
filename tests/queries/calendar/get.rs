@@ -1,6 +1,7 @@
-use crate::common::event_input;
+use crate::common::{create_event, create_user, event_input};
 use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
 use calendar_api::database::event::create::view::CreateEventQueryView;
+use calendar_api::database::event::model::EventVisibility;
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database};
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
@@ -70,4 +71,34 @@ async fn test_get_calendar_excludes_out_of_window_event() {
     let events = db.fetch_all::<Event, _>(&view).await.expect("query ok");
 
     assert!(!events.iter().any(|e| e.id() == id));
+}
+
+#[tokio::test]
+#[serial]
+async fn test_get_calendar_lists_public_events_of_others_only() {
+    let (_container, host) = get_shared_db().await;
+    let db = Database::new(host).await;
+    let organiser = create_user(&db, "Agent", Some("User")).await;
+    let reader = create_user(&db, "Lecteur", Some("User")).await;
+    let start = Utc::now();
+    let public_input = event_input("Marché de Noël", None, start, start + Duration::hours(4));
+    let mut private_input = public_input.clone();
+    private_input.name = "Entretien annuel".to_string();
+    private_input.visibility = EventVisibility::Private;
+    let public_id = create_event(&db, organiser, &public_input).await as i32;
+    let private_id = create_event(&db, organiser, &private_input).await as i32;
+
+    let view = GetCalendarQueryView::new(
+        start - Duration::hours(1),
+        start + Duration::hours(5),
+        reader,
+    );
+    let events = db.fetch_all::<Event, _>(&view).await.expect("query ok");
+
+    let public = events
+        .iter()
+        .find(|e| e.id() == public_id)
+        .expect("public event listed");
+    assert!(!public.is_member && public.visibility() == EventVisibility::Public);
+    assert!(!events.iter().any(|e| e.id() == private_id));
 }

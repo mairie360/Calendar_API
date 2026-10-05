@@ -20,13 +20,18 @@ import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3002').replace(/\/+$/, '');
 
-// Same secret as the stack's JWT_SECRET (the literal string `b"secret"`).
-const JWT_SECRET = __ENV.JWT_SECRET || 'b"secret"';
+// The stack's JWT_SECRET, random per run (performance_test.sh, MAIR-428): no committed default.
+const JWT_SECRET = __ENV.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is not set: run ./performance_test.sh, which generates it');
+}
+/** Token lifetime: the whole run, setup and teardown included. */
+const JWT_TTL_SECONDS = 2 * 60 * 60;
 
-/** HS256 JWT for a user seeded by liquibase / init-test.sql, valid until 2100. */
+/** HS256 JWT for a user seeded by liquibase / init-test.sql, valid for the run. */
 function jwt(sub, role) {
   const header = encoding.b64encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }), 'rawurl');
-  const payload = encoding.b64encode(JSON.stringify({ sub: String(sub), role, exp: 4102444800 }), 'rawurl');
+  const payload = encoding.b64encode(JSON.stringify({ sub: String(sub), role, exp: Math.floor(Date.now() / 1000) + JWT_TTL_SECONDS }), 'rawurl');
   return `${header}.${payload}.${crypto.hmac('sha256', JWT_SECRET, `${header}.${payload}`, 'base64rawurl')}`;
 }
 
@@ -89,7 +94,7 @@ function eventBody(name) {
   };
 }
 
-/** Event created by `auth`, with `memberIds` assigned (the creator only sees it once assigned). */
+/** Event created by `auth`, with `memberIds` assigned (the creator can only edit it once assigned). */
 function createEvent(name, memberIds, auth = ADMIN) {
   const eventId = fixture('POST', '/api/v1/events/', eventBody(name), auth).json('event_id');
   for (const userId of memberIds) {
@@ -106,6 +111,7 @@ const spec = loadSpec();
 
 const readHandlers = {
   'GET /health': ({ request }) => check(request(), { 'health 200': (r) => r.status === 200 }),
+  'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
   'GET /api/v1/calendar': ({ request }) =>
     check(request({ query: WINDOW }), { 'calendar 200': (r) => r.status === 200 }),
   'GET /api/v1/events/{event_id}/': ({ request, data }) =>
@@ -117,8 +123,6 @@ const readHandlers = {
 };
 
 const writeHandlers = {
-  'POST /': ({ request }) => check(request(), { 'hello 200': (r) => r.status === 200 }),
-
   // Events: create → patch → delete.
   'POST /api/v1/events/': ({ request }) => {
     const res = request({ body: eventBody('k6 create event') });
@@ -127,7 +131,14 @@ const writeHandlers = {
   },
   'PATCH /api/v1/events/{event_id}/': ({ request }) => {
     const eventId = createEvent('k6 patch event', [1]);
-    check(request({ path: { event_id: eventId }, body: { location: 'Salle des mariages' } }), {
+    check(request({
+      path: { event_id: eventId },
+      body: {
+        events_start_time: '2026-10-05T19:00:00Z',
+        events_end_time: '2026-10-05T21:00:00Z',
+        location: 'Salle des mariages',
+      },
+    }), {
       'patch event 204': (r) => r.status === 204,
     });
     deleteEvent(eventId);

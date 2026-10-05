@@ -1,4 +1,5 @@
 use actix_web::{get, web, HttpResponse, Responder};
+use mairie360_api_lib::database::db_interface::id_from_sql;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -37,12 +38,12 @@ pub async fn load_event(
         service: input.service,
         location: input.location,
         recurrence: input.recurrence,
-        owner: event.owner_id().map(|id| id as u64),
-        created_by: event.created_by().map(|id| id as u64),
+        owner: event.owner_id().map(id_from_sql),
+        created_by: event.created_by().map(id_from_sql),
         members: members
             .into_iter()
             .map(|member| MemberView {
-                id: member.user_id() as u64,
+                id: id_from_sql(member.user_id()),
                 validation_status: member.validation_status(),
             })
             .collect(),
@@ -58,21 +59,21 @@ pub async fn load_event(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Consulter le détail d'un événement",
-    description = "Renvoie un événement complet : description, visibilité, catégorie, lieu, \
-                   récurrence, participants avec leur statut de validation, statut d'approbation \
-                   global, et **droits de l'appelant** sur l'événement.\n\n\
-                   Le champ `permissions` évite de redériver les règles d'accès côté client : il \
-                   suffit de masquer les boutons dont le drapeau correspondant est `false`.\n\n\
-                   Réservé aux participants assignés : un événement existant auquel l'appelant \
-                   n'est pas assigné répond `403`, pas `404`.",
+    summary = "Read the detail of an event",
+    description = "Returns a full event: description, visibility, category, location, \
+                   recurrence, members, approval status, and the **caller's rights** on the \
+                   event.\n\n\
+                   The `permissions` field saves the client from re-deriving the access rules: \
+                   hide the buttons whose flag is `false`.\n\n\
+                   A `Public` event is readable by every authenticated user. A `Private` event \
+                   only by its members and its creator: anyone else gets `403`, not `404`.",
     params(
-        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21)
+        ("event_id" = u64, Path, description = "Event id.", example = 21)
     ),
     responses(
         (
             status = 200,
-            description = "Détail de l'événement et droits de l'appelant.",
+            description = "Detail of the event and rights of the caller.",
             body = GetEventResultView,
             example = json!({
                 "id": 21,
@@ -88,7 +89,7 @@ pub async fn load_event(
                 "owner": 42,
                 "created_by": 42,
                 "members": [
-                    { "id": 42, "validation_status": "validated" },
+                    { "id": 42, "validation_status": "pending" },
                     { "id": 51, "validation_status": "pending" }
                 ],
                 "approval_status": "pending",
@@ -97,35 +98,44 @@ pub async fn load_event(
         ),
         (
             status = 400,
-            description = "Un segment de l'URL n'est pas un entier, ou le corps JSON est malformé.",
+            description = "A path segment is not an integer.",
             body = String,
             content_type = "text/plain",
             example = json!("Path deserialize error: can not parse `abc` to a u64")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
+            status = 429,
+            description = "The caller exceeded their request quota (`RATE_LIMIT_PER_SECOND` per second on \
+                           average, bursts of `RATE_LIMIT_BURST`, counted per user). The \
+                           `Retry-After` header gives the seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Too many requests, retry in 1s.")
+        ),
+        (
             status = 403,
-            description = "L'appelant n'est pas assigné à cet événement. Seuls ses participants peuvent le voir.",
+            description = "The event is `Private` and the caller is neither one of its members nor its creator.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden.")
         ),
         (
             status = 404,
-            description = "Aucun événement ne porte cet identifiant.",
+            description = "No event has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown event.")
         ),
         (
             status = 500,
-            description = "Erreur de base de données.",
+            description = "Database error.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

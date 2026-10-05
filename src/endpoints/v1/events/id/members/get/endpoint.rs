@@ -1,4 +1,5 @@
 use actix_web::{get, web, HttpResponse, Responder};
+use mairie360_api_lib::database::db_interface::id_from_sql;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -11,59 +12,70 @@ use crate::endpoints::v1::events::id::members::get::view::GetMembersResultView;
 #[utoipa::path(
     get,
     path = "",
-    summary = "Lister les participants d'un événement",
-    description = "Renvoie les participants assignés à l'événement, chacun avec son statut de \
-                   validation individuel. Réservé aux participants assignés.\n\n\
-                   Seuls les identifiants Core API sont renvoyés : pour obtenir les noms, les \
-                   repasser à `GET /api/v1/user/?ids=1,2,3` de Core API.\n\n\
-                   `GET /api/v1/events/{event_id}/` renvoie déjà cette même liste avec le détail \
-                   de l'événement : cet endpoint sert à la rafraîchir seule.",
+    summary = "List the members of an event",
+    description = "Returns the users assigned to the event. Their `validation_status` is the \
+                   approval status of the event, the same for every member: the decision is taken \
+                   for the whole event. Readable by whoever can read the event (anyone for a \
+                   `Public` event, its members and creator for a `Private` one).\n\n\
+                   Only Core API ids are returned: pass them to Core API's \
+                   `GET /api/v1/user/?ids=1,2,3` for the names.\n\n\
+                   `GET /api/v1/events/{event_id}/` already returns this list with the event \
+                   detail: this endpoint refreshes it alone.",
     params(
-        ("event_id" = u64, Path, description = "Identifiant de l'événement.", example = 21)
+        ("event_id" = u64, Path, description = "Event id.", example = 21)
     ),
     responses(
         (
             status = 200,
-            description = "Participants de l'événement et leur statut de validation.",
+            description = "Members of the event, sorted by id.",
             body = GetMembersResultView,
             example = json!({
                 "members": [
-                    { "id": 42, "validation_status": "validated" },
+                    { "id": 42, "validation_status": "pending" },
                     { "id": 51, "validation_status": "pending" }
                 ]
             })
         ),
         (
             status = 400,
-            description = "Un segment de l'URL n'est pas un entier, ou le corps JSON est malformé.",
+            description = "A path segment is not an integer.",
             body = String,
             content_type = "text/plain",
             example = json!("Path deserialize error: can not parse `abc` to a u64")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
+            status = 429,
+            description = "The caller exceeded their request quota (`RATE_LIMIT_PER_SECOND` per second on \
+                           average, bursts of `RATE_LIMIT_BURST`, counted per user). The \
+                           `Retry-After` header gives the seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Too many requests, retry in 1s.")
+        ),
+        (
             status = 403,
-            description = "L'appelant n'est pas assigné à cet événement.",
+            description = "The event is `Private` and the caller is neither one of its members nor its creator.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden.")
         ),
         (
             status = 404,
-            description = "Aucun événement ne porte cet identifiant.",
+            description = "No event has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown event.")
         ),
         (
             status = 500,
-            description = "Erreur de base de données.",
+            description = "Database error.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -93,7 +105,7 @@ pub async fn get_event_members(
         members: members
             .into_iter()
             .map(|member| MemberView {
-                id: member.user_id() as u64,
+                id: id_from_sql(member.user_id()),
                 validation_status: member.validation_status(),
             })
             .collect(),

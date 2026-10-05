@@ -1,18 +1,30 @@
 use chrono::{DateTime, Utc};
+use mairie360_api_lib::database::db_interface::id_from_sql;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::database::calendar::get::view::Event;
-use crate::database::event::model::{EventCategory, EventRecurrence};
+use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
+
+/// Widest period `GET /calendar` accepts, in days (a leap year).
+pub const MAX_CALENDAR_RANGE_DAYS: i64 = 366;
 
 #[derive(Debug, Clone, serde::Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct GetCalendarParams {
-    /// Début de la période (inclus). Obligatoire.
+    /// Start of the period (inclusive). Required.
     #[param(value_type = String, format = DateTime, example = "2026-10-01T00:00:00Z")]
     pub start: DateTime<Utc>,
-    /// Fin de la période (incluse). Obligatoire, et doit être postérieure ou égale à `start`.
+    /// End of the period (inclusive). Required, not before `start` and at most 366 days after it.
     #[param(value_type = String, format = DateTime, example = "2026-10-31T23:59:59Z")]
     pub end: DateTime<Utc>,
+}
+
+impl GetCalendarParams {
+    /// `end` not before `start`, and the period at most `MAX_CALENDAR_RANGE_DAYS` wide.
+    pub fn is_valid(&self) -> bool {
+        self.end >= self.start
+            && self.end - self.start <= chrono::Duration::days(MAX_CALENDAR_RANGE_DAYS)
+    }
 }
 
 /// Événement du calendrier, sur la période demandée.
@@ -30,10 +42,13 @@ pub struct EventView {
     /// Fin de l'événement, toujours strictement postérieure au début.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T20:00:00Z")]
     pub end: DateTime<Utc>,
-    /// Vrai si l'appelant est assigné à l'événement (sinon il n'en est que propriétaire).
-    /// À `false`, le détail via `GET /api/v1/events/{event_id}/` répondra `403`.
+    /// True when the caller is assigned to the event. `false` for an event they only own, or a
+    /// public event of someone else: both stay readable through `GET /api/v1/events/{event_id}/`.
     #[schema(example = true)]
     pub is_member: bool,
+    /// `Public` events are listed in every user's calendar, `Private` ones only for their owner
+    /// and members.
+    pub visibility: EventVisibility,
     /// Catégorie de l'événement.
     pub category: EventCategory,
     /// Service organisateur, ou `null`.
@@ -49,12 +64,14 @@ pub struct EventView {
 
 impl From<Event> for EventView {
     fn from(event: Event) -> Self {
+        let visibility = event.visibility();
         Self {
-            id: event.id as u64,
+            id: id_from_sql(event.id),
             name: event.name,
             start: event.start_date,
             end: event.end_date,
             is_member: event.is_member,
+            visibility,
             category: event.category,
             service: event.service,
             location: event.location,
@@ -66,6 +83,6 @@ impl From<Event> for EventView {
 /// Événements du calendrier sur la période demandée.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct GetCalendarResultView {
-    /// Événements de l'appelant sur la période. Sans pagination ni limite de nombre.
+    /// Public events and the caller's events over the period, without pagination.
     pub events: Vec<EventView>,
 }

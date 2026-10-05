@@ -1,8 +1,8 @@
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{id_to_sql, ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Droits de l'utilisateur `$2` sur l'événement `$1`, calculés en une requête.
+/// Rights of user `$2` on event `$1`, computed in one query.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventAccessQueryView {
     params: Vec<QueryParam>,
@@ -12,8 +12,8 @@ impl EventAccessQueryView {
     pub fn new(event_id: u64, user_id: u64) -> Self {
         Self {
             params: vec![
-                QueryParam::I32(event_id as i32),
-                QueryParam::I32(user_id as i32),
+                QueryParam::I32(id_to_sql(event_id)),
+                QueryParam::I32(id_to_sql(user_id)),
             ],
         }
     }
@@ -25,6 +25,7 @@ impl ApiRequestDto for EventAccessQueryView {
             "SELECT jsonb_build_object( \
                 'exists', EXISTS (SELECT 1 FROM events WHERE id = $1), \
                 'created_by', (SELECT created_by FROM events WHERE id = $1), \
+                'is_public', EXISTS (SELECT 1 FROM events WHERE id = $1 AND visibility = 'public'), \
                 'is_member', EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2), \
                 'manager_role', EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
                     WHERE ur.user_id = $2 AND r.name IN ('Admin', 'Maire', 'Responsable')), \
@@ -36,14 +37,11 @@ impl ApiRequestDto for EventAccessQueryView {
                         AND caller_group.user_id = $2 \
                     WHERE ev.id = $1), \
                 'requires_approval', ",
-            crate::event_requires_approval_sql!(),
+            crate::creator_requires_approval_sql!("(SELECT created_by FROM events WHERE id = $1)"),
             ", \
-                'approval_status', CASE \
-                    WHEN EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND validation_status = 'refused') \
-                        THEN 'rejected' \
-                    WHEN EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND validation_status = 'pending') \
-                        THEN 'pending' \
-                    ELSE 'approved' END \
+                'approval_status', COALESCE((SELECT CASE approval_status \
+                    WHEN 'refused' THEN 'rejected' WHEN 'pending' THEN 'pending' ELSE 'approved' END \
+                    FROM events WHERE id = $1), 'pending') \
             )"
         )
     }
@@ -53,7 +51,7 @@ impl ApiRequestDto for EventAccessQueryView {
     }
 }
 
-/// Décision de validation à appliquer : `pending` (en attente), `approved` (validé) ou `rejected` (refusé).
+/// Approval decision of an event: `pending` (waiting for a Responsable), `approved` or `rejected`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ApprovalStatus {
@@ -62,17 +60,30 @@ pub enum ApprovalStatus {
     Rejected,
 }
 
+impl ApprovalStatus {
+    /// Matching `event_validation_status` value of `events.approval_status`.
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            ApprovalStatus::Pending => "pending",
+            ApprovalStatus::Approved => "validated",
+            ApprovalStatus::Rejected => "refused",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventAccess {
     pub exists: bool,
     pub created_by: Option<i32>,
+    pub is_public: bool,
     pub is_member: bool,
     pub manager_role: bool,
     pub responsable_role: bool,
     pub shares_group_with_creator: bool,
+    /// The creator only has the User or Guest roles: a Responsable must approve the event.
     pub requires_approval: bool,
     pub approval_status: ApprovalStatus,
-    /// Identifiant de l'appelant, renseigné par la vue (non lu en base).
+    /// Caller id, set by the view (not read from the database).
     #[serde(skip)]
     pub caller_id: i32,
 }
@@ -82,12 +93,13 @@ impl EventAccess {
         self.created_by == Some(self.caller_id)
     }
 
-    /// Seules les personnes assignées voient l'événement.
+    /// A public event is readable by every authenticated user; a private one by its members and
+    /// its creator.
     pub fn can_view(&self) -> bool {
-        self.is_member
+        self.is_public || self.is_member || self.is_creator()
     }
 
-    /// Personne assignée qui en est le créateur ou qui est Responsable, Maire ou Admin.
+    /// Assigned member who is the creator or has the Responsable, Maire or Admin role.
     pub fn can_edit(&self) -> bool {
         self.is_member && (self.is_creator() || self.manager_role)
     }
@@ -96,12 +108,13 @@ impl EventAccess {
         self.is_creator()
     }
 
-    /// Le créateur gère les membres dès la création (avant d'être lui-même membre).
+    /// The creator manages members from creation on (before being a member themselves).
     pub fn can_manage_members(&self) -> bool {
         self.is_creator() || self.can_edit()
     }
 
-    /// Responsable assigné, partageant un groupe avec le créateur, d'un événement en attente de validation.
+    /// Assigned Responsable sharing a group with the creator, on an event still waiting for
+    /// approval.
     pub fn can_validate(&self) -> bool {
         self.responsable_role
             && self.is_member
@@ -109,5 +122,37 @@ impl EventAccess {
             && self.created_by.is_some()
             && self.requires_approval
             && self.shares_group_with_creator
+    }
+
+    /// An edit moving the event (see `EventInput::changes_schedule`) made without a manager role
+    /// must be approved again.
+    pub fn edit_needs_new_approval(&self) -> bool {
+        self.requires_approval && !self.manager_role
+    }
+}
+
+/// Locks the row of event `$1` until the end of the transaction (`FOR UPDATE`), so that the
+/// rights computed by `EventAccessQueryView` in the same transaction still hold when the write
+/// runs: a concurrent edit, deletion, member change or decision on the same event waits.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LockEventQueryView {
+    params: Vec<QueryParam>,
+}
+
+impl LockEventQueryView {
+    pub fn new(event_id: u64) -> Self {
+        Self {
+            params: vec![QueryParam::I32(id_to_sql(event_id))],
+        }
+    }
+}
+
+impl ApiRequestDto for LockEventQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT id FROM events WHERE id = $1 FOR UPDATE"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }

@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RemoveUserFromEventQueryView {
@@ -11,18 +13,18 @@ impl RemoveUserFromEventQueryView {
     pub fn new(user_id: u64, event_id: u64) -> Self {
         Self {
             params: vec![
-                QueryParam::I32(user_id as i32),
-                QueryParam::I32(event_id as i32),
+                QueryParam::I32(id_to_sql(user_id)),
+                QueryParam::I32(id_to_sql(event_id)),
             ],
         }
     }
 
     pub fn user_id(&self) -> u64 {
-        self.params[0].as_i32() as u64
+        id_from_sql(self.params[0].as_i32())
     }
 
     pub fn event_id(&self) -> u64 {
-        self.params[1].as_i32() as u64
+        id_from_sql(self.params[1].as_i32())
     }
 }
 

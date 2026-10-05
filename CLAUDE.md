@@ -24,18 +24,21 @@ Cargo aliases are defined in `.cargo/config.toml`:
 | `cargo lint_fix` | `cargo fmt --all` |
 | `cargo check_code` | `cargo clippy --all-targets --all-features -- -D warnings` (CI gate) |
 | `cargo open_api` | Regenerate the OpenAPI JSON: `cargo run --example generate_openapi` |
-| `cargo cov_test` | `cargo llvm-cov` with a **60% line-coverage gate** (`--fail-under-lines 60`), ignoring `endpoints/`, `main.rs`, `lib.rs` — CI gate |
+| `cargo cov_test` | `cargo llvm-cov` with a **60% line-coverage gate** (`--fail-under-lines 60`), ignoring `main.rs` and `lib.rs` only — CI gate |
 | `cargo cov` | Same as `cov_test` but also writes `codecov.json` (`--codecov`) |
 | `cargo build` / `cargo run` | Build / run the server (needs the env vars below) |
 
-Only the `database/` layer is coverage-gated; `endpoints/` (thin actix glue) and the binary
-entrypoints are deliberately excluded, so put testable logic in `database/`.
+`database/` **and** `endpoints/` are coverage-gated (MAIR-419): the access rules and input validation live
+in the handlers, so they are tested through the real `/api` scope. Only the binary entrypoints are excluded.
 
 Tests:
 
 - `cargo test` — runs everything. Integration tests in `tests/` spin up a **throwaway PostgreSQL
   testcontainer** via `mairie360_api_lib::test_setup` (Docker must be available; no local DB needed).
 - `cargo test --test integration_test` — only the integration suite.
+- `cargo test --test integration_test endpoints` — the handler tests (`tests/endpoints/`): the `/api` scope
+  mounted like `main.rs` (`JwtMiddleware` + `endpoints::config`) on the shared database, with JWTs signed by
+  `endpoints::bearer`. Every refusal (401, 403, 404, 409, 400) of a handler belongs there.
 - `cargo test test_create_event_by_user_success` — a single test by name.
 - DB query tests are `#[tokio::test] #[serial]` and call `get_shared_db()` (a process-wide
   `OnceCell` container shared across all tests), then `Database::new(host).await`.
@@ -52,16 +55,24 @@ CI runs on `main` after the dev release, not part of `cargo test`; they need Doc
 The service under test in these three stacks is `image: ${IMAGE_REF}` (no `build:` block). CI sets `IMAGE_REF` to the
 published `ghcr.io/mairie360/calendar-api:dev-<sha>` image; when it is empty the scripts build `calendar-api:local` from
 `development.Dockerfile` first. That image is distroless (no shell, no curl), so readiness is a `calendar-ready` sidecar
-polling `/health`, and dependent services wait for it with `service_completed_successfully`.
+polling `/ready`, and dependent services wait for it with `service_completed_successfully`.
 
-The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
-`JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
+**No test credential is committed (MAIR-428).** The three scripts source `test_secrets.sh`, which exports a random
+`JWT_SECRET` per run (`openssl rand -hex 32`, an exported value wins) and a `sign_jwt <sub> <role> <ttl>` helper; the
+compose files require it (`${JWT_SECRET:?…}`), so run the scripts rather than `docker compose up` on those files.
+The published image refuses a weak or well-known secret (API_lib 2.0.0); only the local dev `docker-compose.yml`
+keeps `b"secret"`, with `JWT_ALLOW_WEAK_SECRET=true`.
+
+The ZAP scan is authenticated: `security-scan` injects `ZAP_AUTH_TOKEN`, an admin JWT (`sub=1`, 2 h) that
+`security_test.sh` signs with the run's secret, on every request, waits for the `seeder`
 service (`init-test.sql`: plain `User` account 2, `Responsable` 3, user 1 is the Admin created by liquibase) and fails on any alert
 not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://calendar:3002` is required: the spec's
 `servers` are unreachable from the ZAP container. Keep `rules.tsv` identical in every API. ZAP builds its requests
 from the spec examples, so an example that does not deserialize (e.g. an enum in the wrong case) leaves the route
 fuzzed only on its `400`. Every text field goes through `validate_event_input` (length matching the column, no
-control character, no `<` / `>`): a `500` or a `<script>` echoed back fails the job.
+control character): a `500` fails the job. `<` and `>` are **accepted** (MAIR-426, « budget > 10 000 € »): the API
+serves JSON or text with `nosniff`, escaping belongs to the fronts, so the XSS rules (40012, 40014, 40016, 40017)
+are `IGNORE`d in `.zap/rules.tsv` with that justification. Never filter markup in an API to quiet ZAP.
 
 Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairie360/CICD `tests/`, available as
 `cicd-repo/` (checked out by CI, cloned by the scripts at the pinned `cicd_version` otherwise, override with
@@ -69,7 +80,7 @@ Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairi
 never reached, or when an operation declaring `security(("jwt" = []))` only got 401/403. `load-test.js` is built on
 `coverage.js` and covers every operation (MAIR-195): GET handlers run in the `reads` scenario (20 VUs) against an
 event created in `setup()`, the other methods in the `writes` scenario (2 VUs), each handler creating and deleting
-its own event so they are order-independent. The script forges its HS256 JWTs (same secret as the stack): the
+its own event so they are order-independent. The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
 validation circuit needs an event created by user 2 (`User`) with user 3 (`Responsable`, sharing group 1000 with
 user 2, both from `init-test.sql`) assigned, then approved by user 3. One `p(95)` threshold per `op` tag (200 ms
 reads, 500 ms writes) and `http_req_failed < 1%`. The spec k6 reads is the one served by the image under test,
@@ -80,8 +91,8 @@ spec's path examples (event 21 with user 51 assigned) so ZAP reaches real rows.
 `tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
 `tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
 committed default (`http://localhost:3002`) stays usable from a host shell. There is no login route here, so the
-collection pre-request script forges the HS256 JWTs itself (claims `sub`/`role`/`exp`, signed with the stack's
-`JWT_SECRET`) for the seeded Admin (user 1) and a plain user (user 2, from `init-test.sql`). The scenario creates
+collection pre-request script forges the HS256 JWTs itself (claims `sub`/`role`/`exp`, signed with the `jwt_secret`
+variable, which the compose file sets to the run's `JWT_SECRET`; empty in `environment.json`) for the seeded Admin (user 1) and a plain user (user 2, from `init-test.sql`). The scenario creates
 its own event and deletes it at the end, so it is replayable against a persistent database.
 
 ### Running the full stack
@@ -91,13 +102,19 @@ API, port 3002), `postgres` (via `ghcr.io/mairie360/database`), `liquibase` (app
 **schema is not defined in this repo**), `seeder` (`init-test.sql`), `redis`, and `nginx`
 (reverse proxy at `calendar.development.mairie360.fr`). `development.Dockerfile` runs
 `cargo watch`; `Dockerfile` is the release build into a distroless `:nonroot` image (uid 65532, guarded by `tests/dockerfile_test.rs`).
+Both Dockerfiles pin the template's `rust:1.99` image by digest, build with `--locked` and cache the dependencies in
+a layer keyed on `Cargo.toml` + `Cargo.lock` (MAIR-427). Every advisory ignored in `.cargo/audit.toml` states why it
+does not apply here; add the reason with any new entry.
 
 ## Required environment variables
 
 `main.rs` reads these via `get_critical_env_var` (the process **panics** if any is missing):
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `HOST`, `PORT`.
 The Postgres URL is assembled from the `DB_*` parts by `database::pg_url::build_pg_url`, which
-percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
+percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `SWAGGER_ENABLED` (`true`/`1`) serves Swagger UI and the OpenAPI document. `RATE_LIMIT_PER_SECOND` (default 10, `0` disables) and
+`RATE_LIMIT_BURST` (default 50) set the per-user quota of `/api` (MAIR-425, `endpoints/rate_limit.rs`): `actix-governor`
+keyed by the authenticated user id, mounted *inside* `JwtMiddleware` (the BFFs share a few pod IPs, so a per-IP
+limit would throttle all their users together), `429` + `Retry-After`. The k6 and ZAP stacks disable it. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
 by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
@@ -105,14 +122,19 @@ by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for 
 ### Request routing (`src/main.rs` → `src/endpoints/`)
 
 Three tiers, assembled in `main.rs`:
-1. **Public, unauthenticated**: `/health`, `/` (`hello`), `/swagger-ui/*`, `/api-docs/openapi.json`.
+1. **Public, unauthenticated**: `/health` (liveness, process only), `/ready` (readiness: `SELECT 1` on Postgres and
+   a Redis read, `503` naming the unreachable one), and `/swagger-ui/*` + `/api-docs/openapi.json` **only when
+   `SWAGGER_ENABLED=true`** (MAIR-424, off by default: every compose stack turns it on, a production instance must
+   not). The template's `POST /` hello route is gone. The
+   probes are mounted once, outside `/api`. `AppState::new` (lib 3.0.0) refuses to start when Postgres is still
+   unreachable after `DB_CONNECT_TIMEOUT` seconds (default 30, MAIR-423): it panics.
 2. **`/api` scope wrapped in `JwtMiddleware`** — everything under `endpoints::config` →
    `v1::config`. A valid JWT is required; handlers receive an `AuthenticatedUser` extractor
    exposing `auth_user.id` (the caller's user id).
 3. Route tree: `/api/v1/events` (POST create, `/{event_id}/` GET/PATCH/DELETE, `/{event_id}/validation`
    PATCH, `/{event_id}/members/` GET/POST + `/{member_id}/` DELETE), `/api/v1/calendar` (GET, time-range
-   query), `/api/v1/params/*` (currently a `501 Not Implemented` catch-all). Published paths are relative to
-   `/api`; `tests/routing_test.rs` checks each published operation hits a mounted route.
+   query); the template's `/api/v1/params/*` `501` placeholder was removed (MAIR-427). Published paths are
+   relative to `/api`; `tests/routing_test.rs` checks each published operation hits a mounted route.
 
 ### Events model and access rules
 
@@ -121,61 +143,40 @@ The schema is the Database **v1.2.0** changeset, shipped in the `1.1.0` release 
 repetition of an event in `recurrence_rules` (`events.recurrence_id`, `is_exception = false`; `end_date` is the
 day after `ends_on` at 00:00 UTC, NULL when the rule never ends). `src/database/event/model.rs` holds the shared
 types (`EventInput`, `EventRecurrence`…) and the SQL fragments reused by several views. Integration tests use the
-database images whose default tag is set by `mairie360_api_lib` (`dev-0aaede5` for lib 1.4.1, override with the
-`TEST_DB_VERSION` env var); the compose files pin the same `dev-0aaede5` images.
+database images pinned by `TEST_DB_VERSION` in `.cargo/config.toml` (`dev-fb7c223`, overriding the lib default; an
+exported `TEST_DB_VERSION` still wins); the compose files pin the same images.
+
+The approval lives on the event (Database `releases/v1.8.0`, MAIR-392): `events.approval_status`
+(`event_validation_status`), `approval_decided_by`, `approval_decided_at`. An event is created `pending` when its
+creator only has the User/Guest roles (`creator_requires_approval_sql!` in `model.rs`), `validated` otherwise.
+Member changes never touch it; a PATCH moving the event (`EventInput::changes_schedule`: dates, recurrence,
+location) by an editor without a manager role sends it back to `pending` in the same `UPDATE`.
+`event_members.validation_status` is no longer read nor written: the members views return the event's status
+for every member.
 
 Every `/{event_id}` operation goes through `endpoints/error.rs::require_event_access` (one
-`EventAccessQueryView` query; 404 unknown event, 403 refused): reading needs the caller to be a member; editing
-needs a member who is the creator or Responsable/Maire/Admin; deleting is the creator's; managing members is the
-creator's or an editor's, and a user can only be assigned inside the caller's scope (Admin/Maire: anyone, others:
-themselves and members of their groups); adding or removing a member recomputes the validation (pending when a
-User/Guest creator shares a group with an assigned Responsable); `PATCH validation` is reserved to such an
-assigned Responsable sharing a group with the creator. `GET /{event_id}/` returns the resulting
-`approval_status` and `permissions`.
+`EventAccessQueryView` query; 404 unknown event, 403 refused): reading needs a `public` event, or the caller to be
+a member or the creator (`GET /calendar` also lists every `public` event); editing needs a member who is the
+creator or Responsable/Maire/Admin; deleting is the creator's; managing members is the creator's or an editor's,
+and a user can only be assigned inside the caller's scope (Admin/Maire: anyone, others: themselves and members of
+their groups); `PATCH validation` is reserved to an assigned Responsable sharing a group with the creator of a
+pending event, and only updates a still pending row (`409` on a concurrent decision). `GET /{event_id}/` returns
+the resulting `approval_status` and `permissions`.
 
-### Endpoint module convention
+Write bodies are `#[serde(deny_unknown_fields)]`: a misspelt field is a `400`, never a silent no-op (the PATCH
+dates are `events_start_time` / `events_end_time` like POST and GET; the old `event_*` names are aliases).
+`GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). That period cap is the bound of the list (MAIR-425): no
+pagination, a mairie's agenda over one year stays small. Database errors go through
+`endpoints/error.rs::database_error` (MAIR-421): unique / foreign-key violation → `409`, no row → `404`, anything
+else → `500`, each logged with the `log` crate (`env_logger`, level from `RUST_LOG`, `info` by default). Never
+`eprintln!`, never a client error for a server failure. Deleting an event removes its orphan recurrence rule in the same
+statement.
 
-Every endpoint is its own directory following the URL path, with up to four files:
-- `mod.rs` — declares submodules and an actix `config(cfg)` fn that wires `web::scope(...)`.
-- `endpoint.rs` — the handler: a public `#[get/post/...]` + `#[utoipa::path(...)]` function that checks the
-  caller's access, validates the input and runs the query views. Errors are the shared
-  `endpoints/error.rs::ApiError`, not a per-endpoint enum.
-- `view.rs` — request/response DTOs. Structs use private fields + explicit getters, `#[derive(ToSchema)]`
-  for OpenAPI, and `TryFrom<web::Json<T>>` / `TryFrom<web::Query<T>>` impls for input validation.
-- `doc.rs` — a `#[derive(OpenApi)]` struct listing this endpoint's `paths(...)` and schema
-  `components(...)`. These nest upward: `get/doc.rs` → `events/doc.rs` → `v1/doc.rs` →
-  `endpoints/swagger.rs::ApiDoc` (the single doc consumed by Swagger UI and `generate_openapi`). utoipa
-  *replaces* rather than merges two `nest` entries landing on the same path, so operations sharing a path are
-  listed in one document (see `events/doc.rs`), and a nest path keeps the trailing slash of the real route.
-
-When adding an endpoint: create the directory + 4 files, register it in the parent `mod.rs`
-`config`, and add its `doc.rs` struct to the parent `doc.rs` nest, or Swagger will not show it.
-
-### Database layer (`src/database/`)
-
-Mirrors `endpoints/` but for persistence. Each operation is a directory holding a single
-`view.rs` (there are **no more `query.rs` files** — removed in the 1.2.0 migration). `view.rs`
-contains:
-- A "query view" struct — a thin wrapper around `params: Vec<QueryParam>`
-  (`mairie360_api_lib::database::db_interface::QueryParam`) — implementing
-  `ApiRequestDto`: `query_sql()` returns a `&'static str` SQL string (`$1`, `$2`, … placeholders)
-  and `query_params()` returns `&self.params`. Keep a `new(...)` constructor with typed args plus
-  getters that read back out of `params`. The struct must `#[derive(serde::Deserialize, serde::Serialize)]`
-  (`ApiRequestDto: DeserializeOwned`).
-- For read queries, a result struct deriving `serde::Deserialize + serde::Serialize` (no
-  `sqlx::FromRow`).
-
-Endpoints run these through `state.get_smart_db()` (a `SmartDatabase`, cache-aside over Redis):
-- `execute(view)` — writes (`INSERT`/`UPDATE`/`DELETE`), takes the view **by value**, returns
-  `Result<(), ApiLibError>` (**no `rows_affected`** — see below).
-- `fetch_scalar::<T, _>(&view)` — one scalar column decoded directly by sqlx (`i32`, `bool`, …).
-  Used for `RETURNING id` on create and `DELETE … RETURNING …` (0 rows → `DbError::NotFound`).
-- `fetch_one::<T, _>(&view)` / `fetch_all::<T, _>(&view)` — the SQL **must return a single JSON
-  column** (`SELECT to_jsonb(t) FROM (SELECT …) t`); the lib decodes it to `serde_json::Value`
-  then `serde_json::from_value::<T>()`. `fetch_one` on 0 rows → `DbError::NotFound`.
-
-`QueryParam` has no `Option<String>`/`Option<DateTime>` variant — pass `QueryParam::Text(x.unwrap_or_default())`
-and wrap the placeholder in `NULLIF($n, '')` in the SQL to store NULL.
+Every write on an existing event (PATCH, DELETE, members POST/DELETE, PATCH validation) runs in **one
+transaction** (`SmartDatabase::begin`, MAIR-420) opened by `require_event_access_in`: it locks the event row
+(`LockEventQueryView`, `FOR UPDATE`), computes the caller's rights, then runs the write queries and commits. An
+early `?` drops the transaction, which rolls it back. Reads keep `require_event_access` (no transaction). A new
+write handler must follow the same shape instead of chaining independent `execute` calls.
 
 Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500, text body).
 
@@ -184,8 +185,9 @@ Tests (`tests/queries/`) hit a real Postgres testcontainer: `Database::new(host)
 Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates events, users (with roles) and groups.
 `tests/model_test.rs` covers input validation and partial updates without a database.
 
-`i32` is the DB id type; the API layer uses `u64` and casts at the boundary (`x as i32`).
-`src/database/event/update_user_status` has no endpoint wired up (kept for its tests).
+`i32` is the DB id type; the API layer uses `u64` and converts at the boundary with API_lib's `id_to_sql` /
+`id_from_sql` (MAIR-422), never `as`: `src/lib.rs` denies the clippy cast lints, and an event id beyond `INT4` is
+answered `404` by `require_event_access` before any query (`id_to_sql` saturates to `i32::MAX`).
 
 ## CI
 

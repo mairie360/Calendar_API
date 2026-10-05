@@ -7,3 +7,7 @@
 10112	IGNORE	Session Management Response Identified
 90005	IGNORE	Sec-Fetch-* Headers Not Present (API, not applicable)
 100001	OUTOFSCOPE	.*/swagger-ui/.*
+40012	IGNORE	Cross Site Scripting (Reflected): JSON/text API with nosniff, the fronts escape what they render (MAIR-426)
+40014	IGNORE	Cross Site Scripting (Persistent): JSON/text API with nosniff, the fronts escape what they render (MAIR-426)
+40016	IGNORE	Cross Site Scripting (Persistent) - Prime: same reason (MAIR-426)
+40017	IGNORE	Cross Site Scripting (Persistent) - Spider: same reason (MAIR-426)

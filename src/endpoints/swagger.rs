@@ -1,6 +1,7 @@
 use crate::endpoints::health::HealthDoc;
-use crate::endpoints::hello::HelloDoc;
+use crate::endpoints::ready::ReadyDoc;
 use crate::endpoints::v1::doc::V1Doc;
+use mairie360_api_lib::env_manager::get_env_var;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
@@ -47,6 +48,7 @@ Statuses returned across the API, before the handler runs:
 | --- | --- |
 | `400` | URL segment that is not an integer, missing or malformed query parameter, or malformed JSON body. |
 | `401` | `Authorization` header missing or malformed, invalid or expired JWT, or revoked session. |
+| `429` | The caller exceeded their request quota (per user, see `RATE_LIMIT_PER_SECOND` / `RATE_LIMIT_BURST`); `Retry-After` gives the seconds to wait. |
 | `500` | Database or Redis failure. |
 ",
         contact(
@@ -65,12 +67,12 @@ Statuses returned across the API, before the handler runs:
     tags(
         (name = "Calendar", description = "Vue calendrier : les événements de l'appelant sur une période, récurrences dépliées."),
         (name = "Events", description = "Événements : création, détail, modification, suppression, participants et validation."),
-        (name = "Service", description = "Sondes techniques non authentifiées, utilisées par Docker et Kubernetes.")
+        (name = "Service", description = "Unauthenticated technical probes, used by Docker and Kubernetes: `/health` (liveness) and `/ready` (readiness).")
     ),
     nest(
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
-        (path = "/", api = HelloDoc),
+        (path = "/", api = ReadyDoc),
     ),
     modifiers(&SecurityAddon)
 )]
@@ -94,5 +96,45 @@ impl Modify for SecurityAddon {
                     .build(),
             ),
         )
+    }
+}
+
+/// Environment variable serving Swagger UI and `/api-docs/openapi.json` when set to `true` or `1`
+/// (MAIR-424). Off by default, so a production image does not publish its contract: the dev, ZAP,
+/// k6 and integration stacks enable it, the BFFs read the published npm package instead.
+pub const SWAGGER_ENABLED_ENV: &str = "SWAGGER_ENABLED";
+
+/// Whether `value` (of [`SWAGGER_ENABLED_ENV`]) enables the documentation routes.
+pub fn is_swagger_enabled(value: Option<&str>) -> bool {
+    value.is_some_and(|value| {
+        let value = value.trim();
+        value == "1" || value.eq_ignore_ascii_case("true")
+    })
+}
+
+/// Reads [`SWAGGER_ENABLED_ENV`] from the environment.
+pub fn swagger_enabled_from_env() -> bool {
+    is_swagger_enabled(get_env_var(SWAGGER_ENABLED_ENV).as_deref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_swagger_enabled;
+
+    #[test]
+    fn swagger_is_off_unless_explicitly_enabled() {
+        for value in [
+            None,
+            Some(""),
+            Some("false"),
+            Some("0"),
+            Some("yes"),
+            Some("on"),
+        ] {
+            assert!(!is_swagger_enabled(value), "{value:?}");
+        }
+        for value in [Some("true"), Some("TRUE"), Some(" 1 ")] {
+            assert!(is_swagger_enabled(value), "{value:?}");
+        }
     }
 }

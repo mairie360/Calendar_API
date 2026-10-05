@@ -116,3 +116,37 @@ pub async fn recurrence_rule_count(db: &Database, rule_id: i32) -> i64 {
     .await
     .unwrap()
 }
+
+/// Approval stored on the event: (`approval_status`, `approval_decided_by`, decision date set).
+pub async fn approval_decision(db: &Database, event_id: u64) -> (String, Option<i32>, bool) {
+    let row: serde_json::Value = db
+        .fetch_one(&fixture(format!(
+            "SELECT jsonb_build_object('status', approval_status, 'by', approval_decided_by, \
+             'at', approval_decided_at IS NOT NULL) FROM events WHERE id = {event_id}"
+        )))
+        .await
+        .unwrap();
+    (
+        row["status"].as_str().unwrap().to_string(),
+        row["by"].as_i64().map(|id| id as i32),
+        row["at"].as_bool().unwrap(),
+    )
+}
+
+/// Archives a user: its tokens are then refused by `JwtMiddleware`.
+pub async fn archive_user(db: &Database, user_id: u64) {
+    db.execute(&fixture(format!(
+        "UPDATE users SET is_archived = TRUE, status = 'archived' WHERE id = {user_id}"
+    )))
+    .await
+    .unwrap();
+}
+
+/// Assigns `user_id` to `event_id` directly in the database.
+pub async fn add_member(db: &Database, event_id: u64, user_id: u64) {
+    db.execute(&fixture(format!(
+        "INSERT INTO event_members (event_id, user_id) VALUES ({event_id}, {user_id})"
+    )))
+    .await
+    .unwrap();
+}

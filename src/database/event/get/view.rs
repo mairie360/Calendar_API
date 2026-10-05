@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 
 use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, EventVisibility};
 
@@ -12,12 +14,12 @@ pub struct GetEventQueryView {
 impl GetEventQueryView {
     pub fn new(id: u64) -> Self {
         Self {
-            params: vec![QueryParam::I32(id as i32)],
+            params: vec![QueryParam::I32(id_to_sql(id))],
         }
     }
 
     pub fn id(&self) -> u64 {
-        self.params[0].as_i32() as u64
+        id_from_sql(self.params[0].as_i32())
     }
 }
 
@@ -92,18 +94,14 @@ impl GetEventQueryResultView {
     }
 
     pub fn visibility(&self) -> EventVisibility {
-        if self.visibility == "private" {
-            EventVisibility::Private
-        } else {
-            EventVisibility::Public
-        }
+        EventVisibility::from_db(&self.visibility)
     }
 
     pub fn category(&self) -> EventCategory {
         serde_json::from_value(serde_json::Value::String(self.category.clone())).unwrap_or_default()
     }
 
-    /// Données de l'événement au format d'écriture, pour appliquer une modification partielle.
+    /// Event data in the write format, to apply a partial update to.
     pub fn to_input(&self) -> EventInput {
         EventInput {
             name: self.name.clone(),

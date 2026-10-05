@@ -1,24 +1,29 @@
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{
+    id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
+};
 
 use crate::database::event::model::EventInput;
 
-/// Remplace les données d'un événement et crée, met à jour ou détache sa règle de répétition. Renvoie
-/// `true` si l'événement existe. Une règle détachée reste en base : `DeleteOrphanRecurrenceQueryView`
-/// la supprime ensuite (la supprimer dans la même requête entrerait en conflit avec le ON DELETE SET NULL).
+/// Replaces the data of an event and creates, updates or detaches its recurrence rule. Returns
+/// `true` if the event exists. With `reset_approval` (`$15`), the event goes back to `pending` and
+/// loses its decision. A detached rule stays in the database: `DeleteOrphanRecurrenceQueryView`
+/// deletes it afterwards (deleting it in the same statement would conflict with the ON DELETE SET
+/// NULL on the event row this statement updates). The PATCH handler runs both in one transaction.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EditEventQueryView {
     params: Vec<QueryParam>,
 }
 
 impl EditEventQueryView {
-    pub fn new(event_id: u64, input: &EventInput) -> Self {
-        let mut params = vec![QueryParam::I32(event_id as i32)];
+    pub fn new(event_id: u64, input: &EventInput, reset_approval: bool) -> Self {
+        let mut params = vec![QueryParam::I32(id_to_sql(event_id))];
         params.extend(input.query_params());
+        params.push(QueryParam::Bool(reset_approval));
         Self { params }
     }
 
     pub fn id(&self) -> u64 {
-        self.params[0].as_i32() as u64
+        id_from_sql(self.params[0].as_i32())
     }
 
     pub fn name(&self) -> &str {
@@ -50,7 +55,11 @@ impl ApiRequestDto for EditEventQueryView {
                     location = NULLIF($9, ''), \
                     recurrence_id = CASE WHEN $10 THEN COALESCE((SELECT id FROM updated_rule), \
                         (SELECT id FROM inserted_rule)) END, \
-                    is_exception = CASE WHEN $10 THEN false END \
+                    is_exception = CASE WHEN $10 THEN false END, \
+                    approval_status = CASE WHEN $15 THEN 'pending'::event_validation_status \
+                        ELSE approval_status END, \
+                    approval_decided_by = CASE WHEN $15 THEN NULL ELSE approval_decided_by END, \
+                    approval_decided_at = CASE WHEN $15 THEN NULL ELSE approval_decided_at END \
                 WHERE id = $1 RETURNING id \
              ) \
              SELECT EXISTS (SELECT 1 FROM updated)"
@@ -62,7 +71,7 @@ impl ApiRequestDto for EditEventQueryView {
     }
 }
 
-/// Supprime une règle de répétition qui n'est plus rattachée à aucun événement.
+/// Deletes a recurrence rule no event uses any more.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DeleteOrphanRecurrenceQueryView {
     params: Vec<QueryParam>,
@@ -71,7 +80,7 @@ pub struct DeleteOrphanRecurrenceQueryView {
 impl DeleteOrphanRecurrenceQueryView {
     pub fn new(recurrence_id: u64) -> Self {
         Self {
-            params: vec![QueryParam::I32(recurrence_id as i32)],
+            params: vec![QueryParam::I32(id_to_sql(recurrence_id))],
         }
     }
 }
