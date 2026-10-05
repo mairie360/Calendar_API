@@ -110,8 +110,8 @@ by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for 
 Three tiers, assembled in `main.rs`:
 1. **Public, unauthenticated**: `/health` (liveness, process only), `/ready` (readiness: `SELECT 1` on Postgres and
    a Redis read, `503` naming the unreachable one), `/` (`hello`), `/swagger-ui/*`, `/api-docs/openapi.json`. The
-   probes are mounted once, outside `/api`. `main.rs` refuses to start when Postgres is still unreachable after
-   15 attempts 2 s apart (MAIR-423).
+   probes are mounted once, outside `/api`. `AppState::new` (lib 3.0.0) refuses to start when Postgres is still
+   unreachable after `DB_CONNECT_TIMEOUT` seconds (default 30, MAIR-423): it panics.
 2. **`/api` scope wrapped in `JwtMiddleware`** — everything under `endpoints::config` →
    `v1::config`. A valid JWT is required; handlers receive an `AuthenticatedUser` extractor
    exposing `auth_user.id` (the caller's user id).
