@@ -8,6 +8,7 @@ pub mod calendar;
 pub mod members;
 pub mod rate_limit;
 pub mod service;
+pub mod token_refusals;
 pub mod transactions;
 pub mod validation;
 
