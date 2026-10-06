@@ -1,6 +1,6 @@
 //! Types métier partagés par les vues de requête et les endpoints des événements.
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use mairie360_api_lib::database::db_interface::QueryParam;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -75,8 +75,10 @@ impl RecurrenceFrequency {
 
 pub const MAX_RECURRENCE_INTERVAL: u32 = 365;
 
-/// Règle de répétition d'un événement, stockée dans `recurrence_rules`.
+/// Règle de répétition d'un événement, stockée dans `recurrence_rules`. An unknown field is a
+/// `400`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EventRecurrence {
     /// Unité de répétition, que `interval` multiplie.
     pub frequency: RecurrenceFrequency,
@@ -87,25 +89,61 @@ pub struct EventRecurrence {
     /// répétition hebdomadaire.
     #[schema(example = json!([1, 4]))]
     pub days_of_week: Option<Vec<u8>>,
-    /// Dernier jour (inclus) où l'événement se répète ; absent = sans fin.
+    /// Last day (inclusive) of the repetition, not before the start date and at most
+    /// `2999-12-31`; absent = never ends.
     #[schema(value_type = Option<String>, format = Date, example = "2027-06-30")]
     pub ends_on: Option<NaiveDate>,
 }
 
+/// Earliest instant an event may start or end: `1970-01-01T00:00:00Z`.
+pub const MIN_EVENT_DATE: DateTime<Utc> = DateTime::UNIX_EPOCH;
+
+/// First year an event may no longer reach: dates stay before `3000-01-01T00:00:00Z`.
+///
+/// Postgres stores far wider ranges, but prints years outside 0001–9999 (`200000-…`, `… BC`) in a
+/// form the reads cannot parse back, so an unbounded date made the event and every calendar
+/// listing it answer `500` (MAIR-481). The window keeps a wide margin under year 10000 in any
+/// time zone.
+pub const MAX_EVENT_YEAR: i32 = 3000;
+
+/// True when `date` is inside the window an event may use, `[1970-01-01, 3000-01-01)` UTC.
+pub fn is_event_date(date: DateTime<Utc>) -> bool {
+    date >= MIN_EVENT_DATE && date.year() < MAX_EVENT_YEAR
+}
+
 impl EventRecurrence {
-    /// Vérifie la règle pour un événement qui commence à `start`.
-    pub fn is_valid_for(&self, start: DateTime<Utc>) -> bool {
+    /// Checks the rule for an event starting at `start`: the faulty field and the rule it breaks,
+    /// or `None` when the rule is valid.
+    pub fn invalid_field(&self, start: DateTime<Utc>) -> Option<(&'static str, &'static str)> {
         let days_valid = self.days_of_week.as_ref().is_none_or(|days| {
             !days.is_empty()
                 && days.len() <= 7
                 && days.iter().all(|day| *day <= 6)
                 && days.iter().collect::<std::collections::HashSet<_>>().len() == days.len()
         });
-        (1..=MAX_RECURRENCE_INTERVAL).contains(&self.interval)
-            && days_valid
-            && self
-                .ends_on
-                .is_none_or(|ends_on| ends_on >= start.date_naive())
+        if !(1..=MAX_RECURRENCE_INTERVAL).contains(&self.interval) {
+            Some(("recurrence.interval", "must be between 1 and 365"))
+        } else if !days_valid {
+            Some((
+                "recurrence.days_of_week",
+                "must hold 1 to 7 distinct days between 0 (Sunday) and 6 (Saturday), or be null",
+            ))
+        } else if self
+            .ends_on
+            .is_some_and(|ends_on| ends_on < start.date_naive() || ends_on.year() >= MAX_EVENT_YEAR)
+        {
+            Some((
+                "recurrence.ends_on",
+                "must not be before the start date nor after 2999-12-31",
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// True when the rule is valid for an event starting at `start`.
+    pub fn is_valid_for(&self, start: DateTime<Utc>) -> bool {
+        self.invalid_field(start).is_none()
     }
 }
 

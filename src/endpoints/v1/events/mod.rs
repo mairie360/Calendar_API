@@ -1,6 +1,6 @@
 use actix_web::web;
 
-use crate::database::event::model::EventInput;
+use crate::database::event::model::{is_event_date, EventInput};
 use crate::endpoints::error::ApiError;
 
 pub mod doc;
@@ -31,33 +31,65 @@ fn is_valid_description(value: &str) -> bool {
             .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
 }
 
-/// Rules shared by event creation and update.
-pub fn validate_event_input(input: &EventInput) -> Result<(), ApiError> {
-    let valid = !input.name.trim().is_empty()
-        && is_valid_label(&input.name, MAX_EVENT_NAME_LENGTH)
-        && input.end > input.start
-        && input
-            .service
-            .as_deref()
-            .is_none_or(|service| is_valid_label(service, MAX_SERVICE_LENGTH))
-        && input
-            .location
-            .as_deref()
-            .is_none_or(|location| is_valid_label(location, MAX_LOCATION_LENGTH))
-        && input
-            .description
-            .as_deref()
-            .is_none_or(is_valid_description)
-        && input
-            .recurrence
-            .as_ref()
-            .is_none_or(|recurrence| recurrence.is_valid_for(input.start));
+/// `400` naming `field` when `valid` is false.
+fn require(valid: bool, field: &str, rule: &str) -> Result<(), ApiError> {
     if valid {
         Ok(())
     } else {
-        Err(ApiError::BadRequest)
+        Err(ApiError::invalid_field(field, rule))
     }
 }
+
+/// Rules shared by event creation and update. The error names the first faulty field.
+pub fn validate_event_input(input: &EventInput) -> Result<(), ApiError> {
+    require(
+        !input.name.trim().is_empty() && is_valid_label(&input.name, MAX_EVENT_NAME_LENGTH),
+        "name",
+        "must hold 1 to 150 characters once trimmed, without control characters",
+    )?;
+    require(is_event_date(input.start), "events_start_time", DATE_RULE)?;
+    require(is_event_date(input.end), "events_end_time", DATE_RULE)?;
+    require(
+        input.end > input.start,
+        "events_end_time",
+        "must be strictly after `events_start_time`",
+    )?;
+    require(
+        input
+            .service
+            .as_deref()
+            .is_none_or(|service| is_valid_label(service, MAX_SERVICE_LENGTH)),
+        "service",
+        "must hold at most 128 characters, without control characters",
+    )?;
+    require(
+        input
+            .location
+            .as_deref()
+            .is_none_or(|location| is_valid_label(location, MAX_LOCATION_LENGTH)),
+        "location",
+        "must hold at most 255 characters, without control characters",
+    )?;
+    require(
+        input
+            .description
+            .as_deref()
+            .is_none_or(is_valid_description),
+        "description",
+        "must hold at most 5000 characters, without control characters other than line breaks and tabs",
+    )?;
+    match input
+        .recurrence
+        .as_ref()
+        .and_then(|recurrence| recurrence.invalid_field(input.start))
+    {
+        Some((field, rule)) => Err(ApiError::invalid_field(field, rule)),
+        None => Ok(()),
+    }
+}
+
+/// Rule of every event date, shared by the error messages.
+pub const DATE_RULE: &str = "must be between 1970-01-01T00:00:00Z and 2999-12-31T23:59:59Z";
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -108,6 +140,39 @@ mod tests {
         input.service = Some("Urbanisme -> voirie".to_string());
         input.location = Some("Salle <A>".to_string());
         input.description = Some("Si recettes < dépenses :\n-> report".to_string());
+        assert!(validate_event_input(&input).is_ok());
+    }
+
+    #[test]
+    fn errors_name_the_faulty_field() {
+        let message = |input: &EventInput| validate_event_input(input).unwrap_err().to_string();
+        assert!(message(&event(" ")).starts_with("Invalid `name`"));
+        let mut input = event("Conseil municipal");
+        input.end = input.start;
+        assert!(message(&input).starts_with("Invalid `events_end_time`"));
+        let mut input = event("Conseil municipal");
+        input.location = Some("a".repeat(256));
+        assert!(message(&input).starts_with("Invalid `location`"));
+    }
+
+    #[test]
+    fn rejects_dates_outside_the_calendar_window() {
+        use chrono::TimeZone;
+        let mut input = event("Conseil municipal");
+        input.start = Utc.with_ymd_and_hms(1969, 12, 31, 23, 59, 59).unwrap();
+        assert!(validate_event_input(&input)
+            .unwrap_err()
+            .to_string()
+            .starts_with("Invalid `events_start_time`"));
+        let mut input = event("Conseil municipal");
+        input.end = Utc.with_ymd_and_hms(3000, 1, 1, 0, 0, 0).unwrap();
+        assert!(validate_event_input(&input)
+            .unwrap_err()
+            .to_string()
+            .starts_with("Invalid `events_end_time`"));
+        let mut input = event("Conseil municipal");
+        input.start = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+        input.end = Utc.with_ymd_and_hms(2999, 12, 31, 23, 59, 59).unwrap();
         assert!(validate_event_input(&input).is_ok());
     }
 

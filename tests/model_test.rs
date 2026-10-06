@@ -64,6 +64,8 @@ fn event_input_validation() {
         (weekly(Some(vec![2, 2]), None, 1), false),
         (weekly(None, None, 0), false),
         (weekly(None, NaiveDate::from_ymd_opt(2026, 9, 13), 1), false),
+        (weekly(None, NaiveDate::from_ymd_opt(2999, 12, 31), 1), true),
+        (weekly(None, NaiveDate::from_ymd_opt(3000, 1, 1), 1), false),
     ] {
         let mut event = input();
         event.recurrence = recurrence.clone();

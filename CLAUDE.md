@@ -163,8 +163,18 @@ their groups); `PATCH validation` is reserved to an assigned Responsable sharing
 pending event, and only updates a still pending row (`409` on a concurrent decision). `GET /{event_id}/` returns
 the resulting `approval_status` and `permissions`.
 
-Write bodies are `#[serde(deny_unknown_fields)]`: a misspelt field is a `400`, never a silent no-op (the PATCH
-dates are `events_start_time` / `events_end_time` like POST and GET; the old `event_*` names are aliases).
+Write bodies are `#[serde(deny_unknown_fields)]` (`recurrence` included): a misspelt field is a `400`, never a
+silent no-op (the PATCH dates are `events_start_time` / `events_end_time` like POST and GET; the old `event_*` names
+are aliases).
+
+Every invalid input is a `400` whose text names the field (MAIR-481): `Invalid `<json path>`: <rule>.`, `body` for
+the whole object. Write handlers take `endpoints/json.rs::JsonBody<T>` instead of `web::Json<T>` (it deserializes
+through `serde_path_to_error`), and the checks after it return `ApiError::invalid_field`. Event dates (and the
+`GET /calendar` bounds) must lie in `[1970-01-01, 3000-01-01)` UTC, `recurrence.ends_on` at most `2999-12-31`
+(`model.rs::is_event_date`): Postgres refuses dates before 4713 BC (`500` on the write) and prints years outside
+0001–9999 in a form the reads cannot parse back, so such an event made its own `GET` and every `GET /calendar`
+listing it answer `500`. A new input rule must name its field the same way.
+
 `GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). That period cap is the bound of the list (MAIR-425): no
 pagination, a mairie's agenda over one year stays small. Database errors go through
 `endpoints/error.rs::database_error` (MAIR-421): unique / foreign-key violation → `409`, no row → `404`, anything

@@ -45,10 +45,10 @@ use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
         ),
         (
             status = 400,
-            description = "`start` or `end` missing or malformed, `end` before `start`, or a period wider than 366 days.",
+            description = "`start` or `end` missing or malformed, outside `1970-01-01T00:00:00Z` – `2999-12-31T23:59:59Z`, `end` before `start`, or a period wider than 366 days. The text body names the faulty parameter, except for a missing or malformed one (actix's `Query deserialize error`).",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request.")
+            example = json!("Invalid `end`: must be at most 366 days after `start`.")
         ),
         (
             status = 401,
@@ -85,9 +85,7 @@ pub async fn get_calendar(
     auth_user: AuthenticatedUser,
     params: web::Query<GetCalendarParams>,
 ) -> Result<impl Responder, ApiError> {
-    if !params.is_valid() {
-        return Err(ApiError::BadRequest);
-    }
+    params.validate()?;
     let events: Vec<Event> = state
         .get_smart_db()
         .fetch_all(&GetCalendarQueryView::new(

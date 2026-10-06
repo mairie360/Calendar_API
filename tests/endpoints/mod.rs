@@ -5,6 +5,7 @@
 
 pub mod access;
 pub mod calendar;
+pub mod input;
 pub mod members;
 pub mod rate_limit;
 pub mod service;

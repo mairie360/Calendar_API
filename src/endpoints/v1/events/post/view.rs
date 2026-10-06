@@ -14,10 +14,10 @@ pub struct PostEventView {
     /// Description libre, ou absente.
     #[schema(max_length = 5000, example = "Ordre du jour envoyé une semaine avant")]
     pub description: Option<String>,
-    /// Début de l'événement.
+    /// Start of the event, between `1970-01-01T00:00:00Z` and `2999-12-31T23:59:59Z`.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T18:00:00Z")]
     pub events_start_time: DateTime<Utc>,
-    /// Fin de l'événement. Doit être **strictement** postérieure au début.
+    /// End of the event, **strictly** after the start and at most `2999-12-31T23:59:59Z`.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T20:00:00Z")]
     pub events_end_time: DateTime<Utc>,
     /// `Public` par défaut.
@@ -30,8 +30,8 @@ pub struct PostEventView {
     /// Lieu de l'événement.
     #[schema(max_length = 255, example = "Salle du conseil")]
     pub location: Option<String>,
-    /// Règle de répétition. Absente pour un événement ponctuel. Doit être cohérente avec la date
-    /// de début, sans quoi la création échoue en `400`.
+    /// Repetition rule, absent for a one-off event. Must be consistent with the start date,
+    /// otherwise `400`.
     pub recurrence: Option<EventRecurrence>,
 }
 
