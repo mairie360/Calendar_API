@@ -91,7 +91,7 @@ VUs), each handler creating and deleting its own event so they are order-indepen
 sends `GET /calendar` at a fixed 100 req/s. The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
 validation circuit needs an event created by user 2 (`User`) with user 3 (`Responsable`, sharing group 1000 with
 user 2, both from `init-test.sql`) assigned, then approved by user 3. One `p(95)` threshold per `op` tag (200 ms
-reads, 500 ms writes), `checks > 99%`, `dropped_iterations == 0` and `http_req_failed < 1%`. Keep `init-perf.sql`
+reads, 500 ms writes), `checks == 100%` (status and seeded rows), `dropped_iterations == 0` and `http_req_failed == 0`. Keep `init-perf.sql`
 and the id ranges at the top of `load-test.js` in step. The spec k6 reads is the one served by the image under test,
 saved into the `openapi-spec` volume by `calendar-ready`. **Adding an endpoint = adding its handler in
 `load-test.js`** (k6 aborts at init otherwise), nothing to do for ZAP. `init-test.sql` also seeds the rows of the

@@ -185,3 +185,48 @@ async fn every_secured_operation_refuses_an_unknown_or_archived_account() {
         }
     }
 }
+
+/// Control of the sweeps: a genuine token of an active account passes the authentication of every
+/// operation (whatever the handler answers next), so their `401`s come from the token alone.
+#[tokio::test]
+#[serial]
+async fn a_genuine_token_passes_the_authentication_of_every_operation() {
+    let ctx = TestContext::new().await;
+    let app = init_app!(ctx);
+    let user = create_user(&ctx.db, "Genuine", Some("User")).await;
+
+    for (method, uri) in secured_operations(1) {
+        let request = TestRequest::default()
+            .method(method.clone())
+            .uri(&uri)
+            .insert_header(bearer(user))
+            .set_json(serde_json::json!({}));
+        let status = status_of!(app, request);
+        assert!(status != 401 && status < 500, "{status}: {method} {uri}");
+    }
+}
+
+/// The sweeps above only see the operations that declare `jwt`: an operation published under
+/// `/api` without it would be skipped silently, so every one of them must declare it.
+#[test]
+fn every_api_operation_declares_jwt() {
+    let document = serde_json::to_value(ApiDoc::openapi()).unwrap();
+    let mut unsecured = Vec::new();
+    for (template, methods) in document["paths"].as_object().unwrap() {
+        if !template.starts_with("/api/") {
+            continue;
+        }
+        for (method, operation) in methods.as_object().unwrap() {
+            let secured = operation["security"]
+                .as_array()
+                .is_some_and(|schemes| schemes.iter().any(|scheme| scheme.get("jwt").is_some()));
+            if !secured {
+                unsecured.push(format!("{} {template}", method.to_uppercase()));
+            }
+        }
+    }
+    assert!(
+        unsecured.is_empty(),
+        "published without `jwt`: {unsecured:?}"
+    );
+}

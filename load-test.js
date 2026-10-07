@@ -146,17 +146,21 @@ const readHandlers = {
   'GET /api/v1/calendar': ({ request }) =>
     check(request({ query: randomWindow(), headers: randomAgent().headers }), {
       'calendar 200': (r) => r.status === 200,
+      // About 40 public events a month in the seed: an empty calendar means it was not loaded.
+      'calendar reads the seed': (r) => r.status === 200 && r.json('events').length > 0,
     }),
   'GET /api/v1/events/{event_id}/': ({ request }) => {
     const agent = randomAgent();
     check(request({ path: { event_id: agent.eventId }, headers: agent.headers }), {
       'get event 200': (r) => r.status === 200,
+      'get event reads the seeded event': (r) => r.status === 200 && r.json('id') === agent.eventId,
     });
   },
   'GET /api/v1/events/{event_id}/members/': ({ request }) => {
     const agent = randomAgent();
     check(request({ path: { event_id: agent.eventId }, headers: agent.headers }), {
       'list members 200': (r) => r.status === 200,
+      'list members reads the seeded members': (r) => r.status === 200 && r.json('members').length >= 3,
     });
   },
 };
@@ -265,8 +269,9 @@ export const options = {
     ...latencyThresholds(writes, WRITE_BUDGET_MS),
     'http_req_duration{op:calendar_rush}': [`p(95)<${CALENDAR_RUSH_BUDGET_MS}`],
     dropped_iterations: ['count==0'], // the rush kept its rate
-    checks: ['rate>0.99'], // a wrong status fails the run, not only a slow one
-    http_req_failed: ['rate<0.01'], // Less than 1% errors
+    // Strict (MAIR-474): one wrong status or one missing seeded row fails the run.
+    checks: ['rate==1'],
+    http_req_failed: ['rate==0'],
   },
 };
 
@@ -282,7 +287,10 @@ export function calendarRushScenario() {
       `&end=${new Date(Date.UTC(2026, month + 1, 1) - 1000).toISOString()}`,
     { headers: randomAgent().headers, tags: { op: 'calendar_rush' } },
   );
-  check(res, { 'calendar rush 200': (r) => r.status === 200 });
+  check(res, {
+    'calendar rush 200': (r) => r.status === 200,
+    'calendar rush reads the seed': (r) => r.status === 200 && r.json('events').length > 0,
+  });
 }
 
 export function writeScenario(data) {
