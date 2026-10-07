@@ -9,12 +9,12 @@
 // High load on a volume seed (MAIR-474): the performance stack also runs init-perf.sql (2 000
 // agents, 50 000 events over 2026-2027 with 3 members each, 2 % public, 500 private weekly recurrences).
 // Three scenarios:
-// - `reads`: the GET operations, ramping up to 100 VUs, as a random seeded agent: their calendar
+// - `reads`: the GET operations, ramping up to the read VUs of the profile (PROFILES), as a random seeded agent: their calendar
 //   over a random month (a whole year one call in ten), one of their events and its members;
-// - `writes`: every other operation with 10 VUs. Each handler is self-contained: it creates what it
+// - `writes`: every other operation with the write VUs of the profile. Each handler is self-contained: it creates what it
 //   needs through `fixture()`, sends its request, then deletes what it created, so the handlers
 //   do not depend on their order and the database ends as it started;
-// - `calendar_rush`: `GET /calendar` over a month as agents at a fixed arrival rate, failing if k6
+// - `calendar_rush`: `GET /calendar` over a month as agents at the fixed arrival rate of the profile, failing if k6
 //   has to drop iterations (the API no longer keeps up).
 import http from 'k6/http';
 import crypto from 'k6/crypto';
@@ -58,8 +58,20 @@ const AGENTS = { first: 300001, count: 2000 };
 const PERF_EVENTS = { first: 100000, count: 50000 };
 const SEED_MONTHS = 24; // 2026 and 2027
 
+// Load profile (MAIR-474), K6_PROFILE:
+// - `ci` (default): what the CI runner holds with the same strict thresholds. The runner
+//   (ubuntu-latest, 4 vCPU) hosts the API, Postgres, Redis and k6 together;
+// - `stress`: the high load, run by hand (`K6_PROFILE=stress ./performance_test.sh`) to find
+//   the breaking point on a larger machine, not on every push.
+const PROFILES = {
+  ci: { readVus: 30, writeVus: 4, rushRate: 30 },
+  stress: { readVus: 100, writeVus: 10, rushRate: 100 },
+};
+const PROFILE = PROFILES[__ENV.K6_PROFILE || 'ci'];
+if (!PROFILE) throw new Error(`Unknown K6_PROFILE ${__ENV.K6_PROFILE}: ${Object.keys(PROFILES).join(', ')}`);
+
 // Fixed-rate `GET /calendar` as agents.
-const CALENDAR_RUSH_RATE = 100; // requests per second
+const CALENDAR_RUSH_RATE = PROFILE.rushRate; // requests per second
 const CALENDAR_RUSH_BUDGET_MS = 200;
 
 const randomInt = (max) => Math.floor(Math.random() * max);
@@ -240,16 +252,16 @@ export const options = {
       executor: 'ramping-vus',
       exec: 'readScenario',
       stages: [
-        { duration: '30s', target: 50 },
-        { duration: '30s', target: 100 },
-        { duration: '2m', target: 100 }, // Hold
+        { duration: '30s', target: Math.ceil(PROFILE.readVus / 2) },
+        { duration: '30s', target: PROFILE.readVus },
+        { duration: '2m', target: PROFILE.readVus }, // Hold
         { duration: '20s', target: 0 },
       ],
     },
     writes: {
       executor: 'constant-vus',
       exec: 'writeScenario',
-      vus: 10,
+      vus: PROFILE.writeVus,
       duration: '3m20s',
     },
     calendar_rush: {
