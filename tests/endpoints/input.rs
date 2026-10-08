@@ -233,6 +233,18 @@ async fn events_at_the_bounds_are_stored_and_readable() {
             "{period} → {text}"
         );
     }
+
+    // The event spans every window: left in the shared database, it would show up in the
+    // calendars of the other tests.
+    let response = call_service(
+        &app,
+        TestRequest::delete()
+            .uri(&format!("/api/v1/events/{event}/"))
+            .insert_header(bearer(creator))
+            .to_request(),
+    )
+    .await;
+    assert!(response.status().is_success());
 }
 
 #[tokio::test]
