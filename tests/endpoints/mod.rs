@@ -4,6 +4,7 @@
 //! applied by the handlers.
 
 pub mod access;
+pub mod access_matrix;
 pub mod calendar;
 pub mod input;
 pub mod members;

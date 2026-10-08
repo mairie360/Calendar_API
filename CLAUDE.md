@@ -197,6 +197,12 @@ transaction** (`SmartDatabase::begin`, MAIR-420) opened by `require_event_access
 early `?` drops the transaction, which rolls it back. Reads keep `require_event_access` (no transaction). A new
 write handler must follow the same shape instead of chaining independent `execute` calls.
 
+`access-matrix.yaml` (MAIR-288) is the access decision of every operation of `ApiDoc` (roles that pass,
+relations to the event: creator, member, assigned Responsable sharing a group with the creator; personal
+fields of the answer): `tests/endpoints/access_matrix.rs` fails when an operation is missing from it or
+unknown, and calls each operation on a private event as each role and relation (an allowed caller never
+gets 401 / 403 / 404, the others get 403). **A new route goes into the matrix.**
+
 Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500, text body).
 
 Tests (`tests/queries/`) hit a real Postgres testcontainer: `Database::new(host).await` (from
