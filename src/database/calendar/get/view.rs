@@ -55,6 +55,12 @@ impl ApiRequestDto for GetCalendarQueryView {
     fn query_sql(&self) -> &'static str {
         // Public events and the events the user owns or is a member of, that overlap the period or
         // whose recurrence rule overlaps it (rule end exclusive).
+        //
+        // The candidates are collected first from indexed lookups (public events of the period or
+        // with an overlapping rule, the user's own events, their memberships), then filtered on
+        // the period. Written as one `visibility OR owner OR member` predicate ANDed with `dates OR
+        // rule`, Postgres walked every event of the table and its estimated cost switched JIT on:
+        // 180 ms per call on 50 000 events, 4 to 10 ms this way with the same rows (MAIR-474).
         concat!(
             "SELECT to_jsonb(t) FROM ( \
                 SELECT e.id, e.name, e.start_date, e.end_date, e.category, \
@@ -64,9 +70,19 @@ impl ApiRequestDto for GetCalendarQueryView {
             crate::recurrence_json_sql!(),
             " AS recurrence \
                 FROM events e LEFT JOIN recurrence_rules rr ON rr.id = e.recurrence_id \
-                WHERE (e.visibility = 'public' OR e.owner_id = $3 \
-                        OR EXISTS (SELECT 1 FROM event_members em \
-                            WHERE em.event_id = e.id AND em.user_id = $3)) \
+                WHERE e.id IN ( \
+                        SELECT pub.id FROM events pub \
+                        WHERE pub.visibility = 'public' AND pub.start_date <= $2 \
+                          AND pub.end_date >= $1 \
+                        UNION ALL \
+                        SELECT pub.id FROM events pub \
+                            JOIN recurrence_rules prr ON prr.id = pub.recurrence_id \
+                        WHERE pub.visibility = 'public' AND prr.start_date <= $2 \
+                          AND (prr.end_date IS NULL OR prr.end_date > $1) \
+                        UNION ALL \
+                        SELECT own.id FROM events own WHERE own.owner_id = $3 \
+                        UNION ALL \
+                        SELECT mine.event_id FROM event_members mine WHERE mine.user_id = $3) \
                   AND ((e.start_date <= $2 AND e.end_date >= $1) \
                     OR (rr.id IS NOT NULL AND rr.start_date <= $2 \
                         AND (rr.end_date IS NULL OR rr.end_date > $1))) \

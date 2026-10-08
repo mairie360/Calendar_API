@@ -92,9 +92,13 @@ impl KeyExtractor for UserKeyExtractor {
             .wait_time_from(DefaultClock::default().now())
             .as_secs()
             .max(1);
+        // actix-governor already set both headers, in whole seconds rounded down: at the default
+        // 10 requests per second the wait is 100 ms and they said `0`. Both carry the body's wait,
+        // at least 1 s (MAIR-474).
         response
             .content_type(ContentType::plaintext())
             .insert_header(("Retry-After", wait.to_string()))
+            .insert_header(("X-RateLimit-After", wait.to_string()))
             .body(format!("Too many requests, retry in {wait}s."))
     }
 }
