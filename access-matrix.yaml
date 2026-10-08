@@ -1,0 +1,66 @@
+# Access matrix of Calendar_API (MAIR-288, epic MAIR-284).
+#
+# A decision of the mairie, proposed by Mairie 360: for every operation of the OpenAPI, who may
+# call it. tests/endpoints/access_matrix.rs reads the spec the API serves and fails when an
+# operation is missing here or listed here without existing, then calls every operation on a
+# private event as a user of each role with no relation to it, and as each relation to the event,
+# and checks the answer: an allowed caller never gets 401 / 403 / 404, any other caller gets 403
+# (401 without a session). Change this file and the code together.
+#
+# Keys of an operation ("METHOD /path" of the OpenAPI):
+#   access     public          no session needed
+#              authenticated   any session (every role, Guest included)
+#   roles      roles that pass whatever the event (none: no role sees a private event it is not
+#              part of, Admin included)
+#   ownership  relations to the event that pass:
+#              creator         the agent who created the event
+#              member          an agent assigned to the event
+#              responsable     an assigned Responsable sharing a group with the creator
+#   personal   personal fields of the answer (gdpr/inventory.yaml of Database), for the review
+#   note       the rule when it is not obvious
+#
+# Rules of the code (database/event/access/view.rs): a public event is readable by every agent, a
+# private one by its creator and members; editing needs an assigned member who is the creator or
+# has a manager role (Admin, Maire, Responsable); deleting is the creator's; managing members is
+# the creator's or an editor's, inside the caller's assignment scope (Admin / Maire: anyone, the
+# others: themselves and the members of their groups); approving a pending event is an assigned
+# Responsable's who shares a group with the creator.
+# Decisions of the mairie (2026-10-08): a Guest only gets the default access of its role.
+
+version: 1
+api: calendar
+roles: [Admin, Maire, Responsable, User, Guest]
+
+operations:
+  GET /health: {access: public}
+  GET /ready: {access: public}
+
+  GET /api/v1/calendar:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+    note: "lists the public events and the caller's own"
+  POST /api/v1/events/:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+    note: "an event created by a User or Guest waits for a Responsable's approval"
+
+  GET /api/v1/events/{event_id}/:
+    access: authenticated
+    ownership: [creator, member, responsable]
+    personal: [created_by, owner, members.id]
+    note: "a public event is readable by every agent"
+  PATCH /api/v1/events/{event_id}/:
+    access: authenticated
+    ownership: [responsable]
+    note: "an assigned member who is the creator or has a manager role"
+  DELETE /api/v1/events/{event_id}/: {access: authenticated, ownership: [creator]}
+
+  GET /api/v1/events/{event_id}/members/:
+    access: authenticated
+    ownership: [creator, member, responsable]
+    personal: [members.id, members.validation_status]
+    note: "a public event's members are readable by every agent"
+  POST /api/v1/events/{event_id}/members/: {access: authenticated, ownership: [creator, responsable]}
+  DELETE /api/v1/events/{event_id}/members/{member_id}/: {access: authenticated, ownership: [creator, responsable]}
+
+  PATCH /api/v1/events/{event_id}/validation: {access: authenticated, ownership: [responsable]}
