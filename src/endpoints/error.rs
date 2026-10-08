@@ -8,10 +8,11 @@ use mairie360_api_lib::smart_db::SmartTransaction;
 
 use crate::database::event::access::view::{EventAccess, EventAccessQueryView, LockEventQueryView};
 
-/// Erreurs communes des endpoints du calendrier (corps texte, sans détail interne).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Errors shared by the calendar endpoints (text body, no internal detail).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApiError {
-    BadRequest,
+    /// Invalid input; the message names the faulty field and the rule it breaks (MAIR-481).
+    BadRequest(String),
     Forbidden,
     NotFound,
     Conflict,
@@ -21,7 +22,7 @@ pub enum ApiError {
 impl std::fmt::Display for ApiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            ApiError::BadRequest => "Bad request.",
+            ApiError::BadRequest(message) => message,
             ApiError::Forbidden => "Forbidden.",
             ApiError::NotFound => "Unknown event.",
             ApiError::Conflict => "Conflict.",
@@ -31,10 +32,17 @@ impl std::fmt::Display for ApiError {
     }
 }
 
+impl ApiError {
+    /// `400` naming `field` (a JSON path such as `recurrence.ends_on`) and the `rule` it breaks.
+    pub fn invalid_field(field: &str, rule: &str) -> Self {
+        ApiError::BadRequest(format!("Invalid `{field}`: {rule}."))
+    }
+}
+
 impl ResponseError for ApiError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ApiError::BadRequest => StatusCode::BAD_REQUEST,
+            ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ApiError::Forbidden => StatusCode::FORBIDDEN,
             ApiError::NotFound => StatusCode::NOT_FOUND,
             ApiError::Conflict => StatusCode::CONFLICT,

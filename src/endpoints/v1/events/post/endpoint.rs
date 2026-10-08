@@ -6,6 +6,7 @@ use mairie360_api_lib::state::AppState;
 use crate::database::event::create::view::CreateEventQueryView;
 use crate::database::event::model::EventInput;
 use crate::endpoints::error::{database_error, ApiError};
+use crate::endpoints::json::JsonBody;
 use crate::endpoints::v1::events::post::view::{PostEventResultView, PostEventView};
 use crate::endpoints::v1::events::validate_event_input;
 
@@ -26,10 +27,11 @@ use crate::endpoints::v1::events::validate_event_input;
                    Other callers create it approved.\n\n\
                    Checks applied: `name` not blank and at most 150 characters, `service` at \
                    most 128 characters, `location` at most 255 characters (none of them with \
-                   control characters or `<` / `>`), `description` at most 5000 characters \
-                   without `<` / `>`, `events_end_time` strictly after `events_start_time`, a \
-                   recurrence rule consistent with the start date, and no unknown field. They all \
-                   share the same `400`.\n\n\
+                   control characters), `description` at most 5000 characters, both dates between \
+                   `1970-01-01T00:00:00Z` and `2999-12-31T23:59:59Z` with `events_end_time` \
+                   strictly after `events_start_time`, a recurrence rule consistent with the start \
+                   date, and no unknown field, also inside `recurrence`. Every refusal is a `400` \
+                   whose text names the faulty field.\n\n\
                    The response only holds the new id.",
     request_body(
         content = PostEventView,
@@ -55,10 +57,10 @@ use crate::endpoints::v1::events::validate_event_input;
         ),
         (
             status = 400,
-            description = "Malformed JSON body, unknown field, end not after start, recurrence rule inconsistent with the start date, or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters; `description` at most 5000 characters, no control character other than line breaks and tabs. `<` and `>` are accepted everywhere (e.g. `budget > 10 000 €`) and returned as-is: the fronts escape what they display.",
+            description = "Invalid input. The text body names the faulty field as a JSON path and the rule it breaks (`Invalid `<field>`: <rule>.`); `body` designates the whole object (missing field, not an object). Causes: malformed JSON, wrong type, unknown field (also inside `recurrence`), a date outside `1970-01-01T00:00:00Z` – `2999-12-31T23:59:59Z`, end not after start, recurrence rule inconsistent with the start date (`interval` 1 to 365, `days_of_week` 1 to 7 distinct days 0–6, `ends_on` not before the start date nor after `2999-12-31`), or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters; `description` at most 5000 characters, no control character other than line breaks and tabs. `<` and `>` are accepted everywhere (e.g. `budget > 10 000 €`) and returned as-is: the fronts escape what they display.",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request.")
+            example = json!("Invalid `events_end_time`: must be strictly after `events_start_time`.")
         ),
         (
             status = 401,
@@ -93,7 +95,7 @@ use crate::endpoints::v1::events::validate_event_input;
 pub async fn create_event(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
-    view: web::Json<PostEventView>,
+    view: JsonBody<PostEventView>,
 ) -> Result<impl Responder, ApiError> {
     let input = EventInput::from(view.into_inner());
     validate_event_input(&input)?;

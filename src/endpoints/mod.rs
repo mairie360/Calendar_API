@@ -1,5 +1,6 @@
 pub mod error;
 pub mod health;
+pub mod json;
 pub mod rate_limit;
 pub mod ready;
 pub mod swagger;

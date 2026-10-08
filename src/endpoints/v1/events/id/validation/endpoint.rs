@@ -7,6 +7,7 @@ use mairie360_api_lib::state::AppState;
 use crate::database::event::access::view::EventAccess;
 use crate::database::event::validation::view::SetEventApprovalQueryView;
 use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
+use crate::endpoints::json::JsonBody;
 use crate::endpoints::v1::events::id::validation::view::UpdateEventValidationView;
 
 #[utoipa::path(
@@ -39,10 +40,10 @@ use crate::endpoints::v1::events::id::validation::view::UpdateEventValidationVie
         ),
         (
             status = 400,
-            description = "Malformed JSON body, unknown field, `event_id` not an integer, or unknown status.",
+            description = "Malformed JSON body, unknown field, `event_id` not an integer, or unknown status. A body error names the faulty field (`body` for the whole object).",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: unknown variant `Maybe`")
+            example = json!("Invalid `status`: unknown variant `Maybe`, expected one of `pending`, `approved`, `rejected`.")
         ),
         (
             status = 401,
@@ -99,7 +100,7 @@ pub async fn update_event_validation(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     event_id: web::Path<u64>,
-    view: web::Json<UpdateEventValidationView>,
+    view: JsonBody<UpdateEventValidationView>,
 ) -> Result<impl Responder, ApiError> {
     let event_id = event_id.into_inner();
     // The Responsable's rights (membership, group, pending status) are checked on the locked row,

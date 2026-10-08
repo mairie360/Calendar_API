@@ -7,6 +7,7 @@ use crate::database::event::access::view::EventAccess;
 use crate::database::event::edit::view::{DeleteOrphanRecurrenceQueryView, EditEventQueryView};
 use crate::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
 use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
+use crate::endpoints::json::JsonBody;
 use crate::endpoints::v1::events::id::patch::view::PatchEventView;
 use crate::endpoints::v1::events::validate_event_input;
 
@@ -48,10 +49,10 @@ use crate::endpoints::v1::events::validate_event_input;
         ),
         (
             status = 400,
-            description = "Malformed JSON body, unknown field, `event_id` not an integer, or event invalid once updated: end not after start, inconsistent recurrence, or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters; `description` at most 5000 characters, no control character other than line breaks and tabs. `<` and `>` are accepted everywhere (e.g. `budget > 10 000 €`) and returned as-is: the fronts escape what they display.",
+            description = "Invalid input. The text body names the faulty field as a JSON path and the rule it breaks (`Invalid `<field>`: <rule>.`); `body` designates the whole object. Causes: `event_id` not an integer, malformed JSON, wrong type, unknown field (also inside `recurrence`), or an event invalid once updated: a date outside `1970-01-01T00:00:00Z` – `2999-12-31T23:59:59Z`, end not after start, recurrence inconsistent with the start date (`interval` 1 to 365, `days_of_week` 1 to 7 distinct days 0–6, `ends_on` not before the start date nor after `2999-12-31`), or a text field breaking its rules: `name` 1 to 150 characters once trimmed, `service` at most 128 characters and `location` at most 255, all three without control characters; `description` at most 5000 characters, no control character other than line breaks and tabs. `<` and `>` are accepted everywhere (e.g. `budget > 10 000 €`) and returned as-is: the fronts escape what they display.",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request.")
+            example = json!("Invalid `recurrence.interval`: must be between 1 and 365.")
         ),
         (
             status = 401,
@@ -101,7 +102,7 @@ pub async fn patch_event(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     event_id: web::Path<u64>,
-    view: web::Json<PatchEventView>,
+    view: JsonBody<PatchEventView>,
 ) -> Result<impl Responder, ApiError> {
     let event_id = event_id.into_inner();
     // One transaction: the access check, the update and the deletion of the detached recurrence

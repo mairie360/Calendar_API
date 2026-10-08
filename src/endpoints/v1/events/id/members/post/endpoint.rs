@@ -8,6 +8,7 @@ use crate::database::event::access::view::EventAccess;
 use crate::database::event::add_member::view::AddUserToEventQueryView;
 use crate::database::event::validation::view::CanAssignUserQueryView;
 use crate::endpoints::error::{database_error, require_event_access_in, ApiError};
+use crate::endpoints::json::JsonBody;
 use crate::endpoints::v1::events::id::members::post::view::PostMemberView;
 
 #[utoipa::path(
@@ -39,10 +40,10 @@ use crate::endpoints::v1::events::id::members::post::view::PostMemberView;
         ),
         (
             status = 400,
-            description = "Malformed JSON body, unknown field, `event_id` not an integer, or missing `user_id`.",
+            description = "Malformed JSON body, unknown field, `event_id` not an integer, or missing or non-integer `user_id`. A body error names the faulty field (`body` for the whole object).",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `user_id`")
+            example = json!("Invalid `body`: missing field `user_id`.")
         ),
         (
             status = 401,
@@ -99,7 +100,7 @@ pub async fn add_event_member(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
     event_id: web::Path<u64>,
-    view: web::Json<PostMemberView>,
+    view: JsonBody<PostMemberView>,
 ) -> Result<impl Responder, ApiError> {
     let event_id = event_id.into_inner();
     // One transaction: the event row stays locked from the access check to the insertion, and the

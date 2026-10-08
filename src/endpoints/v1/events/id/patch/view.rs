@@ -27,11 +27,12 @@ pub struct PatchEventView {
     #[serde(default, deserialize_with = "deserialize_present")]
     #[schema(value_type = Option<String>, nullable, max_length = 5000, example = "Ordre du jour envoyé une semaine avant")]
     pub description: Option<Option<String>>,
-    /// New start. Absent to leave it unchanged. `event_start_time` is accepted as a legacy alias.
+    /// New start, between `1970-01-01T00:00:00Z` and `2999-12-31T23:59:59Z`. Absent to leave it
+    /// unchanged. `event_start_time` is accepted as a legacy alias.
     #[serde(alias = "event_start_time")]
     #[schema(value_type = Option<String>, format = DateTime, example = "2026-10-05T18:00:00Z")]
     pub events_start_time: Option<DateTime<Utc>>,
-    /// New end. Must stay strictly after the start once updated. `event_end_time` is accepted as
+    /// New end, at most `2999-12-31T23:59:59Z`. Must stay strictly after the start once updated. `event_end_time` is accepted as
     /// a legacy alias.
     #[serde(alias = "event_end_time")]
     #[schema(value_type = Option<String>, format = DateTime, example = "2026-10-05T20:00:00Z")]
