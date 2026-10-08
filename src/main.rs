@@ -7,6 +7,7 @@ use calendar_api::endpoints::rate_limit::{
 };
 use calendar_api::endpoints::swagger::{swagger_enabled_from_env, ApiDoc};
 use calendar_api::endpoints::{config, health, ready};
+use calendar_api::request_log::request_logger;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::security::JwtMiddleware;
@@ -61,7 +62,8 @@ async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
-            .wrap(middleware::Logger::default())
+            // Method and path only, never the query string (MAIR-290, see `request_log`).
+            .wrap(request_logger())
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             // 1. Swagger UI and the OpenAPI document, only when SWAGGER_ENABLED is set (MAIR-424).
