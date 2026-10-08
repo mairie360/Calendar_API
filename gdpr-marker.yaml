@@ -1,0 +1,88 @@
+# GDPR log marker journey (MAIR-290), played by mairie360/CICD tests/gdpr/marker.
+#
+# Calendar_API receives no account data, but agents write names, e-mails and phone numbers in
+# free text (event names, descriptions, locations). The marker's values are put there, in query
+# strings and in deliberate errors (refused values, wrong types, unknown rows); the logs of every
+# container of docker-compose-gdpr-marker.yml are then searched for them (gdpr_marker_test.sh).
+# A log describes an error by its type and context, never by the value it received.
+version: 1
+target: http://calendar:3002
+wait: /ready
+# The admin JWT of this run (sub=1, the Admin seeded by liquibase), signed by gdpr_marker_test.sh.
+env: [ADMIN_JWT]
+steps:
+  - name: create an event naming the marker
+    request:
+      method: POST
+      path: /api/v1/events/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {name: "Meeting {{marker.first_name}} {{marker.last_name}}", description: "Contact {{marker.email}}, {{marker.phone}}", location: "Home of {{marker.last_name}}", events_start_time: "2026-11-05T18:00:00Z", events_end_time: "2026-11-05T20:00:00Z"}
+    expect: [201]
+    capture:
+      event_id: body.event_id
+  - name: create an event ending before it starts (deliberate error)
+    request:
+      method: POST
+      path: /api/v1/events/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {name: "Meeting {{marker.first_name}} {{marker.last_name}}", description: "Contact {{marker.email}}, {{marker.phone}}", events_start_time: "2026-11-05T20:00:00Z", events_end_time: "2026-11-05T18:00:00Z"}
+    expect: [400]
+  - name: create an event with an unknown visibility (deliberate error)
+    request:
+      method: POST
+      path: /api/v1/events/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {name: "Meeting", visibility: "{{marker.last_name}}", events_start_time: "2026-11-05T18:00:00Z", events_end_time: "2026-11-05T20:00:00Z"}
+    expect: [400]
+  - name: create an event with a start time of the wrong format (deliberate error)
+    request:
+      method: POST
+      path: /api/v1/events/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {name: "Meeting", events_start_time: "{{marker.phone}}", events_end_time: "2026-11-05T20:00:00Z"}
+    expect: [400]
+  - name: read the calendar with a refused start (deliberate error, query string)
+    request: {method: GET, path: "/api/v1/calendar?start={{marker.email}}&end=2026-12-01T00:00:00Z", headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}}
+    expect: [400]
+  - name: read the calendar
+    request: {method: GET, path: "/api/v1/calendar?start=2026-11-01T00:00:00Z&end=2026-12-01T00:00:00Z", headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}}
+  - name: read the event
+    request: {method: GET, path: "/api/v1/events/{{event_id}}/", headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}}
+  - name: join the event (the creator is not a member yet)
+    request:
+      method: POST
+      path: "/api/v1/events/{{event_id}}/members/"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {user_id: 1}
+    expect: [201]
+  - name: update the event description
+    request:
+      method: PATCH
+      path: "/api/v1/events/{{event_id}}/"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {description: "Call {{marker.first_name}} back on {{marker.phone}}", location: "{{marker.email}}"}
+    expect: [204]
+  - name: update an event that does not exist (deliberate error)
+    request:
+      method: PATCH
+      path: /api/v1/events/999999/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {description: "Call {{marker.first_name}} back on {{marker.phone}}"}
+    expect: [404]
+  - name: add a member of the wrong type (deliberate error)
+    request:
+      method: POST
+      path: "/api/v1/events/{{event_id}}/members/"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {user_id: "{{marker.last_name}}"}
+    expect: [400]
+  - name: decide the approval with an unknown status (deliberate error)
+    request:
+      method: PATCH
+      path: "/api/v1/events/{{event_id}}/validation"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {status: "{{marker.first_name}}"}
+    expect: [400]
+  - name: delete the event
+    request: {method: DELETE, path: "/api/v1/events/{{event_id}}/", headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}}
+    expect: [204]
