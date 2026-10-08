@@ -6,12 +6,16 @@
 // `readHandlers` (GET) or `writeHandlers` (any other method) and send its request through
 // `request()` (raw `http.*` calls are not counted).
 //
-// Two scenarios share the spec, split by HTTP method:
-// - `reads`: the GET operations under the historical profile (ramp up to 20 VUs), against the
-//   fixtures created once in setup() and removed in teardown();
-// - `writes`: every other operation with 2 VUs. Each handler is self-contained: it creates what it
+// High load on a volume seed (MAIR-474): the performance stack also runs init-perf.sql (2 000
+// agents, 50 000 events over 2026-2027 with 3 members each, 2 % public, 500 private weekly recurrences).
+// Three scenarios:
+// - `reads`: the GET operations, ramping up to the read VUs of the profile (PROFILES), as a random seeded agent: their calendar
+//   over a random month (a whole year one call in ten), one of their events and its members;
+// - `writes`: every other operation with the write VUs of the profile. Each handler is self-contained: it creates what it
 //   needs through `fixture()`, sends its request, then deletes what it created, so the handlers
-//   do not depend on their order and the database ends as it started.
+//   do not depend on their order and the database ends as it started;
+// - `calendar_rush`: `GET /calendar` over a month as agents at the fixed arrival rate of the profile, failing if k6
+//   has to drop iterations (the API no longer keeps up).
 import http from 'k6/http';
 import crypto from 'k6/crypto';
 import encoding from 'k6/encoding';
@@ -49,8 +53,47 @@ const WRITE_BUDGET_MS = 500;
 
 const READ_METHODS = ['get', 'head', 'options'];
 
-// Window read by GET /calendar; every fixture event sits inside it.
-const WINDOW = { start: '2026-10-01T00:00:00Z', end: '2026-10-31T23:59:59Z' };
+// Rows of init-perf.sql: event 100000 + g belongs to agent 300001 + g % 2000.
+const AGENTS = { first: 300001, count: 2000 };
+const PERF_EVENTS = { first: 100000, count: 50000 };
+const SEED_MONTHS = 24; // 2026 and 2027
+
+// Load profile (MAIR-474), K6_PROFILE:
+// - `ci` (default): what the CI runner holds with the same strict thresholds. The runner
+//   (ubuntu-latest, 4 vCPU) hosts the API, Postgres, Redis and k6 together;
+// - `stress`: the high load, run by hand (`K6_PROFILE=stress ./performance_test.sh`) to find
+//   the breaking point on a larger machine, not on every push.
+const PROFILES = {
+  ci: { readVus: 30, writeVus: 4, rushRate: 30 },
+  stress: { readVus: 100, writeVus: 10, rushRate: 100 },
+};
+const PROFILE = PROFILES[__ENV.K6_PROFILE || 'ci'];
+if (!PROFILE) throw new Error(`Unknown K6_PROFILE ${__ENV.K6_PROFILE}: ${Object.keys(PROFILES).join(', ')}`);
+
+// Fixed-rate `GET /calendar` as agents.
+const CALENDAR_RUSH_RATE = PROFILE.rushRate; // requests per second
+const CALENDAR_RUSH_BUDGET_MS = 200;
+
+const randomInt = (max) => Math.floor(Math.random() * max);
+
+const agentTokens = {};
+
+/** A random seeded agent: its `Authorization` header and one of its events. */
+function randomAgent() {
+  const rank = randomInt(AGENTS.count);
+  const id = AGENTS.first + rank;
+  if (!agentTokens[id]) agentTokens[id] = { Authorization: `Bearer ${jwt(id, 'user')}` };
+  const eventsPerAgent = PERF_EVENTS.count / AGENTS.count;
+  return { headers: agentTokens[id], eventId: PERF_EVENTS.first + rank + AGENTS.count * randomInt(eventsPerAgent) };
+}
+
+/** A random month of the seed, or (one call in ten) the whole year that starts with it. */
+function randomWindow() {
+  const month = randomInt(SEED_MONTHS);
+  const start = new Date(Date.UTC(2026, month, 1));
+  const end = randomInt(10) === 0 ? new Date(Date.UTC(2026, month + 12, 1) - 1000) : new Date(Date.UTC(2026, month + 1, 1) - 1000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
 
 /** The served spec restricted to the operations whose method passes `keep`. */
 function specSubset(spec, keep) {
@@ -113,13 +156,25 @@ const readHandlers = {
   'GET /health': ({ request }) => check(request(), { 'health 200': (r) => r.status === 200 }),
   'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
   'GET /api/v1/calendar': ({ request }) =>
-    check(request({ query: WINDOW }), { 'calendar 200': (r) => r.status === 200 }),
-  'GET /api/v1/events/{event_id}/': ({ request, data }) =>
-    check(request({ path: { event_id: data.eventId } }), { 'get event 200': (r) => r.status === 200 }),
-  'GET /api/v1/events/{event_id}/members/': ({ request, data }) =>
-    check(request({ path: { event_id: data.eventId } }), {
-      'list members 200': (r) => r.status === 200,
+    check(request({ query: randomWindow(), headers: randomAgent().headers }), {
+      'calendar 200': (r) => r.status === 200,
+      // About 40 public events a month in the seed: an empty calendar means it was not loaded.
+      'calendar reads the seed': (r) => r.status === 200 && r.json('events').length > 0,
     }),
+  'GET /api/v1/events/{event_id}/': ({ request }) => {
+    const agent = randomAgent();
+    check(request({ path: { event_id: agent.eventId }, headers: agent.headers }), {
+      'get event 200': (r) => r.status === 200,
+      'get event reads the seeded event': (r) => r.status === 200 && r.json('id') === agent.eventId,
+    });
+  },
+  'GET /api/v1/events/{event_id}/members/': ({ request }) => {
+    const agent = randomAgent();
+    check(request({ path: { event_id: agent.eventId }, headers: agent.headers }), {
+      'list members 200': (r) => r.status === 200,
+      'list members reads the seeded members': (r) => r.status === 200 && r.json('members').length >= 3,
+    });
+  },
 };
 
 const writeHandlers = {
@@ -197,38 +252,57 @@ export const options = {
       executor: 'ramping-vus',
       exec: 'readScenario',
       stages: [
-        { duration: '30s', target: 20 }, // Ramp up to 20 virtual users
-        { duration: '1m', target: 20 }, // Hold
-        { duration: '10s', target: 0 }, // Ramp down
+        { duration: '30s', target: Math.ceil(PROFILE.readVus / 2) },
+        { duration: '30s', target: PROFILE.readVus },
+        { duration: '2m', target: PROFILE.readVus }, // Hold
+        { duration: '20s', target: 0 },
       ],
     },
     writes: {
       executor: 'constant-vus',
       exec: 'writeScenario',
-      vus: 2,
-      duration: '1m40s',
+      vus: PROFILE.writeVus,
+      duration: '3m20s',
+    },
+    calendar_rush: {
+      executor: 'constant-arrival-rate',
+      exec: 'calendarRushScenario',
+      startTime: '1m', // once the reads are at full load
+      rate: CALENDAR_RUSH_RATE,
+      timeUnit: '1s',
+      duration: '1m',
+      preAllocatedVUs: 50,
+      maxVUs: 200,
     },
   },
   thresholds: {
     ...reads.thresholds, // every operation exercised, no handler error (shared counters)
     ...latencyThresholds(reads, READ_BUDGET_MS),
     ...latencyThresholds(writes, WRITE_BUDGET_MS),
-    http_req_failed: ['rate<0.01'], // Less than 1% errors
+    'http_req_duration{op:calendar_rush}': [`p(95)<${CALENDAR_RUSH_BUDGET_MS}`],
+    dropped_iterations: ['count==0'], // the rush kept its rate
+    // Strict (MAIR-474): one wrong status or one missing seeded row fails the run.
+    checks: ['rate==1'],
+    http_req_failed: ['rate==0'],
   },
 };
 
-/** Read fixture: an event of the calendar window with the Admin and user 2 assigned. */
-export function setup() {
-  return { eventId: createEvent('k6 read fixture', [1, AGENT_ID]) };
-}
-
-export function teardown(data) {
-  deleteEvent(data.eventId);
-}
-
-export function readScenario(data) {
-  reads.run({ headers: ADMIN, data });
+export function readScenario() {
+  reads.run({ headers: ADMIN });
   sleep(1);
+}
+
+export function calendarRushScenario() {
+  const month = randomInt(SEED_MONTHS);
+  const res = http.get(
+    `${BASE_URL}/api/v1/calendar?start=${new Date(Date.UTC(2026, month, 1)).toISOString()}` +
+      `&end=${new Date(Date.UTC(2026, month + 1, 1) - 1000).toISOString()}`,
+    { headers: randomAgent().headers, tags: { op: 'calendar_rush' } },
+  );
+  check(res, {
+    'calendar rush 200': (r) => r.status === 200,
+    'calendar rush reads the seed': (r) => r.status === 200 && r.json('events').length > 0,
+  });
 }
 
 export function writeScenario(data) {

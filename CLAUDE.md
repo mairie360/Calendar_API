@@ -38,7 +38,11 @@ Tests:
 - `cargo test --test integration_test` — only the integration suite.
 - `cargo test --test integration_test endpoints` — the handler tests (`tests/endpoints/`): the `/api` scope
   mounted like `main.rs` (`JwtMiddleware` + `endpoints::config`) on the shared database, with JWTs signed by
-  `endpoints::bearer`. Every refusal (401, 403, 404, 409, 400) of a handler belongs there.
+  `endpoints::bearer`. Every refusal (401, 403, 404, 409, 400) of a handler belongs there. `token_refusals.rs` sweeps every operation of
+  `ApiDoc` declaring `jwt` (`401` without a token, with another scheme, garbage, another secret, an expired token,
+  `alg: none`, a swapped payload or an asymmetric algorithm; `404` for an unknown or archived account), and
+  `rate_limit.rs` checks the production quota of `RateLimit::from_env()` (`429` past the burst, `Retry-After` of
+  at least 1 s).
 - `cargo test test_create_event_by_user_success` — a single test by name.
 - DB query tests are `#[tokio::test] #[serial]` and call `get_shared_db()` (a process-wide
   `OnceCell` container shared across all tests), then `Database::new(host).await`.
@@ -78,12 +82,17 @@ Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairi
 `cicd-repo/` (checked out by CI, cloned by the scripts at the pinned `cicd_version` otherwise, override with
 `CICD_VERSION`; gitignored). ZAP runs with `--hook zap_hooks.py` and fails when an operation of the served spec was
 never reached, or when an operation declaring `security(("jwt" = []))` only got 401/403. `load-test.js` is built on
-`coverage.js` and covers every operation (MAIR-195): GET handlers run in the `reads` scenario (20 VUs) against an
-event created in `setup()`, the other methods in the `writes` scenario (2 VUs), each handler creating and deleting
-its own event so they are order-independent. The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
+`coverage.js` and covers every operation (MAIR-195), under a high load on a volume seed (MAIR-474): the performance
+stack's `seeder` also runs `init-perf.sql` (2 000 agents `300001`-`302000`, 50 000 events over 2026-2027 with 3
+members each, 2 % public, 500 private weekly recurrences; event `100000 + g` belongs to agent `300001 + g % 2000`). GET
+handlers run in the `reads` scenario (up to 100 VUs) as a random seeded agent (their calendar over a random month,
+a whole year one call in ten, one of their events and its members), the other methods in the `writes` scenario (10
+VUs), each handler creating and deleting its own event so they are order-independent; a `calendar_rush` scenario
+sends `GET /calendar` at a fixed 100 req/s. The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
 validation circuit needs an event created by user 2 (`User`) with user 3 (`Responsable`, sharing group 1000 with
 user 2, both from `init-test.sql`) assigned, then approved by user 3. One `p(95)` threshold per `op` tag (200 ms
-reads, 500 ms writes) and `http_req_failed < 1%`. The spec k6 reads is the one served by the image under test,
+reads, 500 ms writes), `checks == 100%` (status and seeded rows), `dropped_iterations == 0` and `http_req_failed == 0`. Two load profiles (`K6_PROFILE`, passed by the compose file): `ci` (default) is what the 4 vCPU CI runner holds with the strict thresholds (30 readers, 4 writers, rush at 30 req/s); `stress` is the high load (100 readers, 10 writers, 100 req/s), run by hand with `K6_PROFILE=stress ./performance_test.sh` to find the breaking point, not on every push. Keep `init-perf.sql`
+and the id ranges at the top of `load-test.js` in step. The spec k6 reads is the one served by the image under test,
 saved into the `openapi-spec` volume by `calendar-ready`. **Adding an endpoint = adding its handler in
 `load-test.js`** (k6 aborts at init otherwise), nothing to do for ZAP. `init-test.sql` also seeds the rows of the
 spec's path examples (event 21 with user 51 assigned) so ZAP reaches real rows.
