@@ -7,6 +7,7 @@ use calendar_api::endpoints::rate_limit::{
 };
 use calendar_api::endpoints::swagger::{swagger_enabled_from_env, ApiDoc};
 use calendar_api::endpoints::{config, health, ready};
+use calendar_api::telemetry;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::security::JwtMiddleware;
@@ -21,7 +22,8 @@ use utoipa_swagger_ui::SwaggerUi;
 async fn main() -> std::io::Result<()> {
     // Structured logs (level, timestamp, target) for the handlers and actix's access log; the level
     // is set by `RUST_LOG` (`info` by default, `calendar_api=debug` to trace the database layer).
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Plus the trace export when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (MAIR-503); flushed on drop.
+    let _telemetry = telemetry::init();
 
     let redis_url = get_critical_env_var("REDIS_URL");
     let db_user = get_critical_env_var("DB_USER");
@@ -62,6 +64,9 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(data.clone())
             .wrap(middleware::Logger::default())
+            // One span per request (MAIR-503), including those refused by `JwtMiddleware`; it
+            // continues the `traceparent` of the BFF.
+            .wrap(tracing_actix_web::TracingLogger::default())
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             // 1. Swagger UI and the OpenAPI document, only when SWAGGER_ENABLED is set (MAIR-424).

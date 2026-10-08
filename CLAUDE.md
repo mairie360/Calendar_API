@@ -124,7 +124,7 @@ percent-encodes user, password and database name, so `DB_PASSWORD` may contain a
 `RATE_LIMIT_BURST` (default 50) set the per-user quota of `/api` (MAIR-425, `endpoints/rate_limit.rs`): `actix-governor`
 keyed by the authenticated user id, mounted *inside* `JwtMiddleware` (the BFFs share a few pod IPs, so a per-IP
 limit would throttle all their users together), `429` + `Retry-After`. The k6 and ZAP stacks disable it. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
-by `mairie360_api_lib`'s JWT layer. See `docker-compose.yml` `x-common-env` for working values.
+by `mairie360_api_lib`'s JWT layer. The `OTEL_*` variables turn the trace export on (see Observability). See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
 
@@ -187,7 +187,8 @@ listing it answer `500`. A new input rule must name its field the same way.
 `GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). That period cap is the bound of the list (MAIR-425): no
 pagination, a mairie's agenda over one year stays small. Database errors go through
 `endpoints/error.rs::database_error` (MAIR-421): unique / foreign-key violation → `409`, no row → `404`, anything
-else → `500`, each logged with the `log` crate (`env_logger`, level from `RUST_LOG`, `info` by default). Never
+else → `500`, each logged with the `log` crate (bridged to `tracing` by `telemetry::init`, on stderr, level from
+`RUST_LOG`, `info` by default). Never
 `eprintln!`, never a client error for a server failure. Deleting an event removes its orphan recurrence rule in the same
 statement.
 
@@ -207,6 +208,29 @@ Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates event
 `i32` is the DB id type; the API layer uses `u64` and converts at the boundary with API_lib's `id_to_sql` /
 `id_from_sql` (MAIR-422), never `as`: `src/lib.rs` denies the clippy cast lints, and an event id beyond `INT4` is
 answered `404` by `require_event_access` before any query (`id_to_sql` saturates to `i32::MAX`).
+
+## Observability (MAIR-503)
+
+`src/telemetry.rs` (same approach as the Core API POC, MAIR-131) installs the logs (`telemetry::log_layer` on
+stderr, `RUST_LOG`, the `log` records of the handlers and of actix's `Logger` bridged to `tracing`) and, when
+`OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set, exports the traces over OTLP/HTTP
+(protobuf) to the agent relaying to Scaleway Cockpit (e.g. `http://alloy:4318`, `/v1/traces` is appended). Nothing
+changes without it; `OTEL_SDK_DISABLED=true` forces it off; `OTEL_SERVICE_NAME` defaults to `calendar-api`; a
+failure to build the exporter is printed and never stops the API.
+
+- `main.rs` wraps the app in `tracing_actix_web::TracingLogger`, inside the request log (`middleware::Logger`,
+  kept), so requests refused by `JwtMiddleware` get a span too. Root spans are named `<METHOD> <route pattern>`,
+  carry `http.*` attributes and continue an incoming `traceparent`. The SQL of `mairie360_api_lib` (sqlx) appears
+  as span **events** (`db.statement` with `$n` placeholders, never the bound values).
+- No personal data leaves in a span (MAIR-290, MAIR-501): `telemetry::Redact` drops `http.client_ip` and the
+  query string of `http.target` before the export, and the trace layer ignores the request log. Build providers
+  with `telemetry::tracer_provider`, never `SdkTracerProvider::builder()` directly. The root span also holds them in
+  memory, so `log_layer` hides it from the logs (the fmt layer would print its fields in front of every event).
+- The `opentelemetry*`, `opentelemetry-otlp`, `opentelemetry_sdk`, `tracing-opentelemetry` and
+  `tracing-actix-web` versions are coupled (0.32 / 0.33 / 0.7 with `opentelemetry_0_32`): bump them together.
+- `tests/endpoints/telemetry.rs` asserts the span, the continued trace id and the SQL events against an in-memory
+  exporter, and (without database) that neither the spans nor the logs carry the query string or the client
+  address.
 
 ## CI
 
