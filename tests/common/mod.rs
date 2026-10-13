@@ -150,3 +150,9 @@ pub async fn add_member(db: &Database, event_id: u64, user_id: u64) {
     .await
     .unwrap();
 }
+
+/// Runs a fixture statement directly in the database, behind the API's back (no cache
+/// invalidation): the cache tests use it to tell a cached page from a fresh one.
+pub async fn raw_sql(db: &Database, sql: String) {
+    db.execute(&fixture(sql)).await.unwrap();
+}

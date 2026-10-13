@@ -1416,6 +1416,11 @@
                   "    pm.expect(event.is_member).to.eql(true);",
                   "    pm.expect(new Date(event.start).toISOString()).to.eql(\"2026-10-05T19:00:00.000Z\");",
                   "    pm.expect(new Date(event.end).toISOString()).to.eql(\"2026-10-05T21:00:00.000Z\");",
+                  "});",
+                  "pm.test(\"The event carries its members and their status (MAIR-524)\", function () {",
+                  "    const event = pm.response.json().events.find(e => e.id === Number(pm.environment.get(\"event_id\")));",
+                  "    pm.expect(event.members.map(m => m.id)).to.eql([Number(pm.environment.get(\"admin_user_id\")), Number(pm.environment.get(\"agent_user_id\"))]);",
+                  "    event.members.forEach(m => pm.expect(m.validation_status).to.eql(\"validated\"));",
                   "});"
                 ]
               }
@@ -1660,6 +1665,49 @@
                 "exec": [
                   "pm.test(\"Status is 204\", function () {",
                   "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Calendar no longer lists the removed participant",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The cached calendar was invalidated by the removal (MAIR-524)\", function () {",
+                  "    const event = pm.response.json().events.find(e => e.id === Number(pm.environment.get(\"event_id\")));",
+                  "    pm.expect(event, 'event').to.exist;",
+                  "    pm.expect(event.members.map(m => m.id)).to.eql([Number(pm.environment.get(\"admin_user_id\"))]);",
                   "});"
                 ]
               }

@@ -10,7 +10,8 @@
 // agents, 50 000 events over 2026-2027 with 3 members each, 2 % public, 500 private weekly recurrences).
 // Three scenarios:
 // - `reads`: the GET operations, ramping up to the read VUs of the profile (PROFILES), as a random seeded agent: their calendar
-//   over a random month (a whole year one call in ten), one of their events and its members;
+//   over a random month (a whole year one call in ten), with every event's members (MAIR-524), one of their events and
+//   its members;
 // - `writes`: every other operation with the write VUs of the profile. Each handler is self-contained: it creates what it
 //   needs through `fixture()`, sends its request, then deletes what it created, so the handlers
 //   do not depend on their order and the database ends as it started;
@@ -87,6 +88,23 @@ function randomAgent() {
   return { headers: agentTokens[id], eventId: PERF_EVENTS.first + rank + AGENTS.count * randomInt(eventsPerAgent) };
 }
 
+/**
+ * MAIR-524: `GET /calendar` carries the members of each event, so the BFF makes no per-event
+ * call. Every listed event has a `members` array, and every seeded event (readable by the agent:
+ * public, owned or assigned) lists its 3 seeded members, sorted by id, with the event's status.
+ */
+function calendarListsMembers(r) {
+  if (r.status !== 200) return false;
+  return r.json('events').every((event) => {
+    if (!Array.isArray(event.members)) return false;
+    if (event.id < PERF_EVENTS.first || event.id >= PERF_EVENTS.first + PERF_EVENTS.count) return true;
+    const ids = event.members.map((member) => member.id);
+    return ids.length === 3
+      && ids.every((id, i) => i === 0 || ids[i - 1] < id)
+      && event.members.every((member) => member.validation_status === 'validated');
+  });
+}
+
 /** A random month of the seed, or (one call in ten) the whole year that starts with it. */
 function randomWindow() {
   const month = randomInt(SEED_MONTHS);
@@ -160,6 +178,7 @@ const readHandlers = {
       'calendar 200': (r) => r.status === 200,
       // About 40 public events a month in the seed: an empty calendar means it was not loaded.
       'calendar reads the seed': (r) => r.status === 200 && r.json('events').length > 0,
+      'calendar lists the members': calendarListsMembers,
     }),
   'GET /api/v1/events/{event_id}/': ({ request }) => {
     const agent = randomAgent();
@@ -302,6 +321,7 @@ export function calendarRushScenario() {
   check(res, {
     'calendar rush 200': (r) => r.status === 200,
     'calendar rush reads the seed': (r) => r.status === 200 && r.json('events').length > 0,
+    'calendar rush lists the members': calendarListsMembers,
   });
 }
 
