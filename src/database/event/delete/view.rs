@@ -4,6 +4,8 @@ use mairie360_api_lib::database::db_interface::{
     id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
 };
 
+use crate::database::calendar::get::view::CALENDAR_CACHE_NAMESPACE;
+
 /// Deletes event `$1` (its members cascade) and, in the same statement, its recurrence rule when
 /// no other event uses it.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -41,5 +43,10 @@ impl ApiRequestDto for DeleteEventQueryView {
 
     fn query_params(&self) -> &[QueryParam] {
         &self.params
+    }
+
+    /// The calendar pages show this row (MAIR-524): invalidated once the write is committed.
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        &[CALENDAR_CACHE_NAMESPACE]
     }
 }

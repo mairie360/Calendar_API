@@ -4,6 +4,8 @@ use mairie360_api_lib::database::db_interface::{
     id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
 };
 
+use crate::database::calendar::get::view::CALENDAR_CACHE_NAMESPACE;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RemoveUserFromEventQueryView {
     params: Vec<QueryParam>,
@@ -35,6 +37,11 @@ impl ApiRequestDto for RemoveUserFromEventQueryView {
 
     fn query_params(&self) -> &[QueryParam] {
         &self.params
+    }
+
+    /// The calendar pages show this row (MAIR-524): invalidated once the write is committed.
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        &[CALENDAR_CACHE_NAMESPACE]
     }
 }
 

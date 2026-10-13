@@ -1,5 +1,7 @@
 use mairie360_api_lib::database::db_interface::{id_to_sql, ApiRequestDto, QueryParam};
 
+use crate::database::calendar::get::view::CALENDAR_CACHE_NAMESPACE;
+
 use crate::database::event::access::view::ApprovalStatus;
 
 /// Records the approval decision `$3` of user `$2` on event `$1`, which must still be pending, and
@@ -32,6 +34,11 @@ impl ApiRequestDto for SetEventApprovalQueryView {
 
     fn query_params(&self) -> &[QueryParam] {
         &self.params
+    }
+
+    /// The calendar pages show this row (MAIR-524): invalidated once the write is committed.
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        &[CALENDAR_CACHE_NAMESPACE]
     }
 }
 
