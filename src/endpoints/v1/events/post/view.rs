@@ -3,8 +3,8 @@ use utoipa::ToSchema;
 
 use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, EventVisibility};
 
-/// Event to create; the caller becomes its owner without being added to its members. An unknown
-/// field is a `400`.
+/// Event to create; the caller becomes its owner, and its members are the users of `members`
+/// (the caller is only one of them when listed). An unknown field is a `400`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PostEventView {
@@ -33,6 +33,22 @@ pub struct PostEventView {
     /// Repetition rule, absent for a one-off event. Must be consistent with the start date,
     /// otherwise `400`.
     pub recurrence: Option<EventRecurrence>,
+    /// Core API ids of the users to assign, written in the same transaction as the event: either
+    /// the event is created with all of them, or nothing is written. Absent or empty: no member
+    /// (the caller included, who must list themselves to edit the event). At most 500 distinct
+    /// ids, each inside the caller's assignment scope (same rule as
+    /// `POST /api/v1/events/{event_id}/members/`).
+    #[serde(default)]
+    #[schema(max_items = 500, example = json!([3, 51]))]
+    pub members: Vec<u64>,
+}
+
+impl PostEventView {
+    /// Splits the body into the event to insert and the users to assign to it.
+    pub fn into_parts(mut self) -> (EventInput, Vec<u64>) {
+        let members = std::mem::take(&mut self.members);
+        (EventInput::from(self), members)
+    }
 }
 
 impl From<PostEventView> for EventInput {

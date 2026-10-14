@@ -219,6 +219,12 @@ transaction** (`SmartDatabase::begin`, MAIR-420) opened by `require_event_access
 early `?` drops the transaction, which rolls it back. Reads keep `require_event_access` (no transaction). A new
 write handler must follow the same shape instead of chaining independent `execute` calls.
 
+`POST /events` takes an optional `members` array (MAIR-562) and inserts the event, its recurrence rule and every
+assignment in one transaction: each id goes through `CanAssignUserQueryView` (`403` rolls the event back), duplicates
+or more than `MAX_CREATED_MEMBERS` (500) are a `400` before any write. The BFF creates an event in one request this
+way instead of one `POST …/members/` per member, which hit the per-user rate limit and left orphan events when its
+compensating `DELETE` got a `429` too.
+
 Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500, text body).
 
 Tests (`tests/queries/`) hit a real Postgres testcontainer: `Database::new(host).await` (from

@@ -155,13 +155,12 @@ function eventBody(name) {
   };
 }
 
-/** Event created by `auth`, with `memberIds` assigned (the creator can only edit it once assigned). */
+/**
+ * Event created by `auth` with `memberIds` assigned in the same call (MAIR-562; the creator can
+ * only edit it once assigned).
+ */
 function createEvent(name, memberIds, auth = ADMIN) {
-  const eventId = fixture('POST', '/api/v1/events/', eventBody(name), auth).json('event_id');
-  for (const userId of memberIds) {
-    fixture('POST', `/api/v1/events/${eventId}/members/`, { user_id: userId }, auth);
-  }
-  return eventId;
+  return fixture('POST', '/api/v1/events/', { ...eventBody(name), members: memberIds }, auth).json('event_id');
 }
 
 function deleteEvent(eventId, auth = ADMIN) {
@@ -199,7 +198,7 @@ const readHandlers = {
 const writeHandlers = {
   // Events: create → patch → delete.
   'POST /api/v1/events/': ({ request }) => {
-    const res = request({ body: eventBody('k6 create event') });
+    const res = request({ body: { ...eventBody('k6 create event'), members: [1, 2] } });
     check(res, { 'create event 201': (r) => r.status === 201 });
     if (res.status === 201) deleteEvent(res.json('event_id'));
   },
