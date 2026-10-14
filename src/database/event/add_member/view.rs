@@ -4,6 +4,8 @@ use mairie360_api_lib::database::db_interface::{
     id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
 };
 
+use crate::database::calendar::get::view::CALENDAR_CACHE_NAMESPACE;
+
 /// Assigns user `$1` to event `$2`. A user already assigned fails with `DbError::UniqueViolation`
 /// (unique index on `(event_id, user_id)`).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -37,6 +39,11 @@ impl ApiRequestDto for AddUserToEventQueryView {
 
     fn query_params(&self) -> &[QueryParam] {
         &self.params
+    }
+
+    /// The calendar pages show this row (MAIR-524): invalidated once the write is committed.
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        &[CALENDAR_CACHE_NAMESPACE]
     }
 }
 

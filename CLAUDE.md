@@ -43,6 +43,11 @@ Tests:
   `alg: none`, a swapped payload or an asymmetric algorithm; `404` for an unknown or archived account), and
   `rate_limit.rs` checks the production quota of `RateLimit::from_env()` (`429` past the burst, `Retry-After` of
   at least 1 s).
+- `tests/endpoints/calendar_cache.rs` checks the read cache of `GET /calendar` on a real Redis container
+  (`TestContext::with_redis`): a second read is served from the cache, each write endpoint invalidates it, two
+  callers never share a page. Every other handler test uses `TestContext::new`, whose Redis is unreachable (cache
+  bypassed), so fixtures can be written behind the API's back. `tests/queries/calendar/plan.rs` asserts the calendar
+  query reads `events` and `event_members` through indexes (`EXPLAIN` with `enable_seqscan = off`).
 - `cargo test test_create_event_by_user_success` — a single test by name.
 - DB query tests are `#[tokio::test] #[serial]` and call `get_shared_db()` (a process-wide
   `OnceCell` container shared across all tests), then `Database::new(host).await`.
@@ -88,7 +93,8 @@ members each, 2 % public, 500 private weekly recurrences; event `100000 + g` bel
 handlers run in the `reads` scenario (up to 100 VUs) as a random seeded agent (their calendar over a random month,
 a whole year one call in ten, one of their events and its members), the other methods in the `writes` scenario (10
 VUs), each handler creating and deleting its own event so they are order-independent; a `calendar_rush` scenario
-sends `GET /calendar` at a fixed 100 req/s. The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
+sends `GET /calendar` at a fixed 100 req/s. Both calendar operations check that every listed event carries a
+`members` array and every seeded event its 3 seeded members, sorted, `validated` (MAIR-524). The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
 validation circuit needs an event created by user 2 (`User`) with user 3 (`Responsable`, sharing group 1000 with
 user 2, both from `init-test.sql`) assigned, then approved by user 3. One `p(95)` threshold per `op` tag (200 ms
 reads, 500 ms writes), `checks == 100%` (status and seeded rows), `dropped_iterations == 0` and `http_req_failed == 0`. Two load profiles (`K6_PROFILE`, passed by the compose file): `ci` (default) is what the 4 vCPU CI runner holds with the strict thresholds (30 readers, 4 writers, rush at 30 req/s); `stress` is the high load (100 readers, 10 writers, 100 req/s), run by hand with `K6_PROFILE=stress ./performance_test.sh` to find the breaking point, not on every push. Keep `init-perf.sql`
@@ -152,7 +158,7 @@ The schema is the Database **v1.2.0** changeset, shipped in the `1.1.0` release 
 repetition of an event in `recurrence_rules` (`events.recurrence_id`, `is_exception = false`; `end_date` is the
 day after `ends_on` at 00:00 UTC, NULL when the rule never ends). `src/database/event/model.rs` holds the shared
 types (`EventInput`, `EventRecurrence`…) and the SQL fragments reused by several views. Integration tests use the
-database images pinned by `TEST_DB_VERSION` in `.cargo/config.toml` (`3.0.0`, overriding the lib default; an
+database images pinned by `TEST_DB_VERSION` in `.cargo/config.toml` (`dev-90c22bb`, overriding the lib default; an
 exported `TEST_DB_VERSION` still wins); the compose files pin the same images.
 
 The approval lives on the event (Database `releases/v1.8.0`, MAIR-392): `events.approval_status`
@@ -183,6 +189,21 @@ through `serde_path_to_error`), and the checks after it return `ApiError::invali
 (`model.rs::is_event_date`): Postgres refuses dates before 4713 BC (`500` on the write) and prints years outside
 0001–9999 in a form the reads cannot parse back, so such an event made its own `GET` and every `GET /calendar`
 listing it answer `500`. A new input rule must name its field the same way.
+
+`GET /calendar` returns each event's `members` (sorted by user id, each with the event's `approval_status` as
+`validation_status`, the same list and shape as `GET /events/{id}`), so the BFF makes no per-event call (MAIR-524).
+They come from one `LEFT JOIN LATERAL` aggregate on `event_members` in `GetCalendarQueryView`, which also yields
+`is_member`; keep the `UNION ALL` of id sources of MAIR-474 (never one `OR` predicate). The calendar lists the events
+the caller **owns** (`owner_id`) while `EventAccess::can_view` uses the **creator** (`created_by`): members are only
+exposed under `can_view` (public, member or creator), an event listed through `owner_id` alone gets `members: []`.
+
+The page is cached in Redis (`CALENDAR_CACHE`, `ReadCache::new("calendar", 30)` of API_lib, key
+`for_user(caller, (start, end))`). Every write view that changes a calendar page (create, edit, orphan recurrence
+cleanup, delete, add/remove member, approval) returns `&[CALENDAR_CACHE_NAMESPACE]` from `invalidated_read_caches`, so
+the namespace generation is bumped after the statement, or after `commit()` inside a transaction. **A new write view
+on `events`, `event_members` or `recurrence_rules` must do the same**, and be added to
+`tests/queries/calendar/plan.rs`. Changes made by another API (a user deleted in Core cascading to `event_members`)
+are only seen after the 30 s TTL. When Redis is unreachable the page is read from Postgres and not stored.
 
 `GET /calendar` refuses periods wider than `MAX_CALENDAR_RANGE_DAYS` (366). That period cap is the bound of the list (MAIR-425): no
 pagination, a mairie's agenda over one year stays small. Database errors go through

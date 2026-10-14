@@ -3,8 +3,23 @@ use std::fmt::Display;
 use mairie360_api_lib::database::db_interface::{
     id_from_sql, id_to_sql, ApiRequestDto, QueryParam,
 };
+use mairie360_api_lib::smart_db::ReadCache;
 
+use crate::database::event::get_event_members::view::Member;
 use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
+
+/// Read-cache namespace of `GET /calendar`: every write view that can change a calendar page
+/// (event created, edited, deleted, member added or removed, approval decided) lists it in
+/// `invalidated_read_caches`.
+pub const CALENDAR_CACHE_NAMESPACE: &str = "calendar";
+
+/// Time to live of a cached calendar page, in seconds. It bounds the staleness of what another
+/// API changes behind this one (a user deleted in Core removes their memberships).
+pub const CALENDAR_CACHE_TTL_SECONDS: u64 = 30;
+
+/// Redis read cache of `GET /calendar` (MAIR-524), keyed by caller and period.
+pub const CALENDAR_CACHE: ReadCache =
+    ReadCache::new(CALENDAR_CACHE_NAMESPACE, CALENDAR_CACHE_TTL_SECONDS);
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GetCalendarQueryView {
@@ -61,15 +76,30 @@ impl ApiRequestDto for GetCalendarQueryView {
         // the period. Written as one `visibility OR owner OR member` predicate ANDed with `dates OR
         // rule`, Postgres walked every event of the table and its estimated cost switched JIT on:
         // 180 ms per call on 50 000 events, 4 to 10 ms this way with the same rows (MAIR-474).
+        //
+        // The members of each listed event and the event's approval status (MAIR-524) come from
+        // one lateral aggregate on `event_members (event_id, …)`, run on the filtered rows only,
+        // which also gives `is_member`. They are exposed under the rule of `GET /events/{id}`
+        // (`EventAccess::can_view`: public, member or **creator**); an event listed only because
+        // the caller is its `owner_id` without being its creator nor a member gets `[]`, so the
+        // list never shows members the detail route would refuse.
         concat!(
             "SELECT to_jsonb(t) FROM ( \
                 SELECT e.id, e.name, e.start_date, e.end_date, e.category, \
                     e.service_label AS service, e.location, e.visibility, \
-                    EXISTS (SELECT 1 FROM event_members em \
-                        WHERE em.event_id = e.id AND em.user_id = $3) AS is_member, ",
+                    COALESCE(m.has_caller, false) AS is_member, \
+                    CASE WHEN e.visibility = 'public' OR e.created_by = $3 \
+                        OR COALESCE(m.has_caller, false) \
+                    THEN COALESCE(m.members, '[]'::jsonb) ELSE '[]'::jsonb END AS members, ",
             crate::recurrence_json_sql!(),
             " AS recurrence \
                 FROM events e LEFT JOIN recurrence_rules rr ON rr.id = e.recurrence_id \
+                LEFT JOIN LATERAL ( \
+                    SELECT jsonb_agg(jsonb_build_object('user_id', em.user_id, \
+                            'validation_status', e.approval_status) ORDER BY em.user_id) AS members, \
+                        bool_or(em.user_id = $3) AS has_caller \
+                    FROM event_members em WHERE em.event_id = e.id \
+                ) m ON true \
                 WHERE e.id IN ( \
                         SELECT pub.id FROM events pub \
                         WHERE pub.visibility = 'public' AND pub.start_date <= $2 \
@@ -115,6 +145,10 @@ pub struct Event {
     pub visibility: String,
     #[serde(default)]
     pub recurrence: Option<EventRecurrence>,
+    /// Assigned members sorted by user id, each carrying the event's approval status; empty when
+    /// the caller may not read the event's detail (see the query).
+    #[serde(default)]
+    pub members: Vec<Member>,
 }
 
 impl Event {
@@ -135,6 +169,7 @@ impl Event {
             is_member: false,
             visibility: "public".to_string(),
             recurrence: None,
+            members: Vec::new(),
         }
     }
 
@@ -156,6 +191,10 @@ impl Event {
 
     pub fn end_date(&self) -> &chrono::DateTime<chrono::Utc> {
         &self.end_date
+    }
+
+    pub fn members(&self) -> &[Member] {
+        &self.members
     }
 }
 
