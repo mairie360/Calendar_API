@@ -9,6 +9,7 @@ use calendar_api::endpoints::swagger::{swagger_enabled_from_env, ApiDoc};
 use calendar_api::endpoints::{config, health, ready};
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
+use mairie360_api_lib::logging::telemetry::{init_telemetry, TracingLogger};
 use mairie360_api_lib::security::JwtMiddleware;
 use mairie360_api_lib::state::AppState;
 
@@ -19,9 +20,11 @@ use utoipa_swagger_ui::SwaggerUi;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Structured logs (level, timestamp, target) for the handlers and actix's access log; the level
-    // is set by `RUST_LOG` (`info` by default, `calendar_api=debug` to trace the database layer).
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Logs on stdout in the format shared by every API, for the handlers and actix's access log
+    // (`RUST_LOG`, default `info`, `calendar_api=debug` to trace the database layer;
+    // `LOG_FORMAT=json` for JSON lines), plus the trace export when `OTEL_EXPORTER_OTLP_ENDPOINT`
+    // is set (MAIR-503); flushed on drop.
+    let _telemetry = init_telemetry("calendar-api");
 
     let redis_url = get_critical_env_var("REDIS_URL");
     let db_user = get_critical_env_var("DB_USER");
@@ -39,17 +42,17 @@ async fn main() -> std::io::Result<()> {
     let bind_address = format!("{}:{}", host, port);
 
     let swagger_enabled = swagger_enabled_from_env();
-    log::info!("Swagger UI and /api-docs/openapi.json served: {swagger_enabled}");
+    tracing::info!("Swagger UI and /api-docs/openapi.json served: {swagger_enabled}");
 
     // Per-user quota of the /api scope (MAIR-425); RATE_LIMIT_PER_SECOND=0 disables it.
     let rate_limit = RateLimit::from_env();
     match rate_limit {
-        Some(limit) => log::info!(
+        Some(limit) => tracing::info!(
             "Rate limit: {} requests/s per user, bursts of {}",
             limit.per_second,
             limit.burst
         ),
-        None => log::warn!("Rate limit disabled (RATE_LIMIT_PER_SECOND=0)"),
+        None => tracing::warn!("Rate limit disabled (RATE_LIMIT_PER_SECOND=0)"),
     }
     let governor = rate_limit
         .unwrap_or(RateLimit {
@@ -62,6 +65,9 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(data.clone())
             .wrap(middleware::Logger::default())
+            // One span per request (MAIR-503), including those refused by `JwtMiddleware`; it
+            // continues the `traceparent` of the BFF.
+            .wrap(TracingLogger::default())
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             // 1. Swagger UI and the OpenAPI document, only when SWAGGER_ENABLED is set (MAIR-424).
@@ -93,7 +99,7 @@ async fn main() -> std::io::Result<()> {
     let addr = server.addrs().first().copied();
     tokio::spawn(async move {
         if let Some(addr) = addr {
-            log::info!("Server listening on http://{addr}");
+            tracing::info!("Server listening on http://{addr}");
         }
     });
 

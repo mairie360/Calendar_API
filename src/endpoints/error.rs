@@ -65,15 +65,15 @@ impl ResponseError for ApiError {
 pub fn database_error(error: ApiLibError) -> ApiError {
     match &error {
         ApiLibError::Database(DbError::UniqueViolation(_) | DbError::ForeignKeyViolation(_)) => {
-            log::warn!(target: "calendar_api::database", "constraint violation: {error:?}");
+            tracing::warn!(target: "calendar_api::database", "constraint violation: {error:?}");
             ApiError::Conflict
         }
         ApiLibError::Database(DbError::NotFound) => {
-            log::debug!(target: "calendar_api::database", "no matching row: {error:?}");
+            tracing::debug!(target: "calendar_api::database", "no matching row: {error:?}");
             ApiError::NotFound
         }
         _ => {
-            log::error!(target: "calendar_api::database", "database failure: {error:?}");
+            tracing::error!(target: "calendar_api::database", "database failure: {error:?}");
             ApiError::DatabaseError
         }
     }
