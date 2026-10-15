@@ -156,3 +156,24 @@ pub async fn add_member(db: &Database, event_id: u64, user_id: u64) {
 pub async fn raw_sql(db: &Database, sql: String) {
     db.execute(&fixture(sql)).await.unwrap();
 }
+
+/// Number of events created by `creator_id`.
+pub async fn created_event_count(db: &Database, creator_id: u64) -> i64 {
+    db.fetch_scalar(&fixture(format!(
+        "SELECT COUNT(*) FROM events WHERE created_by = {creator_id}"
+    )))
+    .await
+    .unwrap()
+}
+
+/// Ids of the users assigned to `event_id`, sorted.
+pub async fn member_ids(db: &Database, event_id: u64) -> Vec<u64> {
+    let ids: serde_json::Value = db
+        .fetch_one(&fixture(format!(
+            "SELECT COALESCE(jsonb_agg(user_id ORDER BY user_id), '[]'::jsonb) \
+             FROM event_members WHERE event_id = {event_id}"
+        )))
+        .await
+        .unwrap();
+    serde_json::from_value(ids).unwrap()
+}
