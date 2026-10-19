@@ -24,7 +24,6 @@ use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::state::AppState;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use serde_json::{json, Value};
 
@@ -41,9 +40,11 @@ pub fn bearer(user_id: u64) -> (&'static str, String) {
     ("Authorization", format!("Bearer {token}"))
 }
 
-/// App state on the shared database, and a plain client of the same database for fixtures.
+/// App state on the shared database, connected as `calendar_api` like in staging (MAIR-556),
+/// and a superuser client of the same database for the fixtures.
 pub struct TestContext {
     pub state: web::Data<AppState>,
+    /// Superuser client, for the fixtures only (see [`common::fixtures_db`]).
     pub db: Database,
     /// Redis container of [`Self::with_redis`], kept alive as long as the context.
     _redis: Option<Box<dyn Any + Send>>,
@@ -54,23 +55,25 @@ impl TestContext {
     /// page comes from Postgres) and the test tokens carry no session to look up, so the tests
     /// can write fixtures behind the API's back.
     pub async fn new() -> Self {
-        let (_container, pg_url) = get_shared_db().await;
-        let state = AppState::new("redis://127.0.0.1:1".to_string(), pg_url.to_string()).await;
+        let state = AppState::new(
+            "redis://127.0.0.1:1".to_string(),
+            common::calendar_db_url().await,
+        )
+        .await;
         Self {
             state: web::Data::new(state),
-            db: Database::new(pg_url).await,
+            db: common::fixtures_db().await,
             _redis: None,
         }
     }
 
     /// Context on a fresh Redis container: the read cache is live (MAIR-524 cache tests).
     pub async fn with_redis() -> Self {
-        let (_container, pg_url) = get_shared_db().await;
         let (redis, config) = start_redis_container().await;
-        let state = AppState::new(config.url.clone(), pg_url.to_string()).await;
+        let state = AppState::new(config.url.clone(), common::calendar_db_url().await).await;
         Self {
             state: web::Data::new(state),
-            db: Database::new(pg_url).await,
+            db: common::fixtures_db().await,
             _redis: Some(Box::new(redis)),
         }
     }

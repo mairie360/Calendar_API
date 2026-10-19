@@ -1,20 +1,17 @@
-use crate::common::event_input;
+use crate::common::{api_db, event_input};
 use calendar_api::database::event::{
     add_member::view::AddUserToEventQueryView,
     create::view::CreateEventQueryView,
     get::view::{GetEventQueryResultView, GetEventQueryView},
 };
 use chrono::Utc;
-use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::database::error::DbError;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_add_member_success() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
 
     let start = Utc::now();
     let end = start + chrono::Duration::hours(1);
@@ -38,8 +35,7 @@ async fn test_add_member_success() {
 #[tokio::test]
 #[serial]
 async fn test_add_member_event_not_found() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
 
     let view = AddUserToEventQueryView::new(1, 99999);
     let result = db.execute(&view).await;

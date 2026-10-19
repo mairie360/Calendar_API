@@ -14,12 +14,11 @@ use calendar_api::database::event::edit::view::{
 use calendar_api::database::event::remove_member::view::RemoveUserFromEventQueryView;
 use calendar_api::database::event::validation::view::SetEventApprovalQueryView;
 use chrono::{Duration, Utc};
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database, QueryParam};
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde_json::Value;
 use serial_test::serial;
 
-use crate::common::{add_member, create_event, create_user, event_input};
+use crate::common::{add_member, api_db, create_event, create_user, event_input, fixtures_db};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct RawSql {
@@ -59,9 +58,9 @@ fn scans(node: &Value, out: &mut Vec<(String, String)>) {
 #[tokio::test]
 #[serial]
 async fn mair_524_the_calendar_query_reads_events_and_members_through_indexes() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let user = create_user(&db, "Planner", Some("User")).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let user = create_user(&fixtures, "Planner", Some("User")).await;
     let start = Utc::now();
     let event = create_event(
         &db,
@@ -69,7 +68,7 @@ async fn mair_524_the_calendar_query_reads_events_and_members_through_indexes() 
         &event_input("Bureau municipal", None, start, start + Duration::hours(1)),
     )
     .await;
-    add_member(&db, event, user).await;
+    add_member(&fixtures, event, user).await;
     let view =
         GetCalendarQueryView::new(start - Duration::days(1), start + Duration::days(30), user);
 

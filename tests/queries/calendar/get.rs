@@ -1,10 +1,9 @@
-use crate::common::{create_event, create_user, event_input};
+use crate::common::{api_db, create_event, create_user, event_input, fixtures_db};
 use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
 use calendar_api::database::event::create::view::CreateEventQueryView;
 use calendar_api::database::event::model::EventVisibility;
 use chrono::{Duration, Utc};
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database};
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::database::db_interface::ApiRequestDto;
 use serial_test::serial;
 
 #[test]
@@ -37,8 +36,7 @@ fn test_event_getters_and_display() {
 #[tokio::test]
 #[serial]
 async fn test_get_calendar_returns_owned_event() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
 
     let start = Utc::now();
     let end = start + Duration::hours(2);
@@ -58,8 +56,7 @@ async fn test_get_calendar_returns_owned_event() {
 #[tokio::test]
 #[serial]
 async fn test_get_calendar_excludes_out_of_window_event() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
 
     let start = Utc::now() + Duration::days(30);
     let end = start + Duration::hours(1);
@@ -76,10 +73,10 @@ async fn test_get_calendar_excludes_out_of_window_event() {
 #[tokio::test]
 #[serial]
 async fn test_get_calendar_lists_public_events_of_others_only() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let organiser = create_user(&db, "Agent", Some("User")).await;
-    let reader = create_user(&db, "Lecteur", Some("User")).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let organiser = create_user(&fixtures, "Agent", Some("User")).await;
+    let reader = create_user(&fixtures, "Lecteur", Some("User")).await;
     let start = Utc::now();
     let public_input = event_input("Marché de Noël", None, start, start + Duration::hours(4));
     let mut private_input = public_input.clone();
