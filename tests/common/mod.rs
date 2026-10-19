@@ -4,8 +4,33 @@ use calendar_api::database::event::create::view::CreateEventQueryView;
 use calendar_api::database::event::model::{EventCategory, EventInput, EventVisibility};
 use chrono::{DateTime, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database, QueryParam};
+use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, get_shared_db_as};
 
-/// Données minimales d'un événement public, sans métadonnées ni répétition.
+/// Postgres role Calendar connects with in every deployment (Database `api_roles.sql`).
+pub const CALENDAR_DB_ROLE: &str = "calendar_api";
+
+/// URL of the shared test database as [`CALENDAR_DB_ROLE`] (MAIR-556): the application code
+/// under test (`AppState`, query views) goes through it, so a query the role is not granted
+/// fails here with `permission denied` instead of in staging.
+pub async fn calendar_db_url() -> String {
+    get_shared_db_as(CALENDAR_DB_ROLE).await
+}
+
+/// Client of the shared test database connected as [`CALENDAR_DB_ROLE`], for the query views
+/// under test.
+pub async fn api_db() -> Database {
+    Database::new(&calendar_db_url().await).await
+}
+
+/// Client of the shared test database connected as the superuser of `get_shared_db()`, for the
+/// fixtures only (users, roles, groups... that Calendar's role may not write). Never run the
+/// code under test through it: a superuser ignores the grants.
+pub async fn fixtures_db() -> Database {
+    let (_container, superuser_url) = get_shared_db().await;
+    Database::new(superuser_url).await
+}
+
+/// Minimal data of a public event, without metadata or recurrence.
 pub fn event_input(
     name: &str,
     description: Option<&str>,
@@ -31,7 +56,7 @@ pub async fn create_event(db: &Database, creator_id: u64, input: &EventInput) ->
         .unwrap() as u64
 }
 
-/// Requête SQL de mise en place propre aux tests (utilisateurs, rôles, groupes), sans paramètres.
+/// Test-only setup SQL statement (users, roles, groups), without parameters.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct FixtureSql {
     #[serde(skip)]
@@ -90,7 +115,7 @@ pub async fn create_user(db: &Database, first_name: &str, role: Option<&str>) ->
     id as u64
 }
 
-/// Crée un groupe contenant `members`.
+/// Creates a group containing `members`.
 pub async fn create_group(db: &Database, owner_id: u64, members: &[u64]) {
     let id: i32 = db
         .fetch_scalar(&fixture(format!(
@@ -108,7 +133,7 @@ pub async fn create_group(db: &Database, owner_id: u64, members: &[u64]) {
     }
 }
 
-/// Nombre de règles de répétition portant l'identifiant donné (0 ou 1).
+/// Number of recurrence rules with the given id (0 or 1).
 pub async fn recurrence_rule_count(db: &Database, rule_id: i32) -> i64 {
     db.fetch_scalar(&fixture(format!(
         "SELECT COUNT(*) FROM recurrence_rules WHERE id = {rule_id}"

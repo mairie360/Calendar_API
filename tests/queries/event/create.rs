@@ -1,12 +1,11 @@
-use crate::common::{create_event, event_input};
+use crate::common::{api_db, create_event, event_input};
 use calendar_api::database::event::create::view::CreateEventQueryView;
 use calendar_api::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
 use calendar_api::database::event::model::{
     EventCategory, EventRecurrence, EventVisibility, RecurrenceFrequency,
 };
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database};
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::database::db_interface::ApiRequestDto;
 use serial_test::serial;
 
 #[test]
@@ -27,8 +26,7 @@ fn test_create_view_params_and_display() {
 #[tokio::test]
 #[serial]
 async fn test_create_event_stores_metadata_without_recurrence() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
     let start = Utc.with_ymd_and_hms(2026, 10, 5, 9, 0, 0).unwrap();
     let mut input = event_input(
         "Conseil",
@@ -53,8 +51,7 @@ async fn test_create_event_stores_metadata_without_recurrence() {
 #[tokio::test]
 #[serial]
 async fn test_create_event_with_weekly_recurrence() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
     let start = Utc.with_ymd_and_hms(2026, 9, 7, 8, 30, 0).unwrap();
     let mut input = event_input("Point hebdo", None, start, start + Duration::minutes(45));
     input.recurrence = Some(EventRecurrence {
@@ -74,8 +71,7 @@ async fn test_create_event_with_weekly_recurrence() {
 #[tokio::test]
 #[serial]
 async fn test_create_event_rejects_end_before_start() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
     let start = Utc::now();
 
     let result = db

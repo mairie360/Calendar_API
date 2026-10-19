@@ -49,8 +49,16 @@ Tests:
   bypassed), so fixtures can be written behind the API's back. `tests/queries/calendar/plan.rs` asserts the calendar
   query reads `events` and `event_members` through indexes (`EXPLAIN` with `enable_seqscan = off`).
 - `cargo test test_create_event_by_user_success` — a single test by name.
-- DB query tests are `#[tokio::test] #[serial]` and call `get_shared_db()` (a process-wide
-  `OnceCell` container shared across all tests), then `Database::new(host).await`.
+- DB query tests are `#[tokio::test] #[serial]` and call `common::api_db()` (a process-wide `OnceCell`
+  container shared across all tests, see below).
+- **The code under test runs as `calendar_api`, never as the superuser (MAIR-556).** `get_shared_db()` hands back
+  the **superuser** URL, used by the fixtures only (`common::fixtures_db()`, `TestContext::db`). Everything that
+  runs Calendar's code connects as the `calendar_api` role, like in staging: `common::api_db()` (query views,
+  through `get_shared_db_as("calendar_api")`) and `AppState::new(…, common::calendar_db_url().await)` (endpoints,
+  `TestContext::state`). A query outside the grants of Database's `api_grants.sql` then fails the test with
+  `permission denied` (`42501`): add the grant there, never connect the code under test as the superuser.
+  `tests/queries/db_role.rs` guards it. The compose stacks connect `calendar` as `calendar_api` too
+  (`-Dcalendar_api_password` passed to Liquibase); postgres, liquibase and the seeder keep the superuser.
 
 OpenAPI client generation (TypeScript, for consumers): `npx orval` reads `openapi.json` per
 `orval.config.js` and writes `generated/`. Regenerate `openapi.json` with `cargo open_api` first.
@@ -227,9 +235,10 @@ compensating `DELETE` got a `429` too.
 
 Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500, text body).
 
-Tests (`tests/queries/`) hit a real Postgres testcontainer: `Database::new(host).await` (from
-`get_shared_db()`), then the same `fetch_*`/`execute` methods (on `Database` these take `&view`).
-Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates events, users (with roles) and groups.
+Tests (`tests/queries/`) hit a real Postgres testcontainer: `common::api_db().await` (connected as `calendar_api`),
+then the same `fetch_*`/`execute` methods (on `Database` these take `&view`).
+Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates events, users (with roles) and groups,
+through the superuser client of `common::fixtures_db()`.
 `tests/model_test.rs` covers input validation and partial updates without a database.
 
 `i32` is the DB id type; the API layer uses `u64` and converts at the boundary with API_lib's `id_to_sql` /
