@@ -1,44 +1,56 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "fe12f65c487b89f664da3d4c0422fa4768d177ed", "prod": "a40acfd5a1afcf946ac60c1dbe32fbe210bb8263", "prod_tag": "v1.1.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-10-21 08:29 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
+<!-- release-journal-state {"dev": "fe12f65c487b89f664da3d4c0422fa4768d177ed", "prod": "a40acfd5a1afcf946ac60c1dbe32fbe210bb8263", "prod_tag": "v1.1.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-10-21 08:30 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.1.0 | `a40acfd` | — |
 | staging | — | `dbc5e3f` | 2026-10-21 03:20 UTC |
-| dev | — | `fe12f65` | 2026-10-21 08:29 UTC |
+| dev | — | `fe12f65` | 2026-10-21 08:30 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.1.0)
 
+#### Changements de comportement
+
+- Les stacks Docker Compose locales et de CI (`docker-compose.yml`, `docker-compose-integration.yml`, `docker-compose-performance.yml`, `docker-compose-security.yml`) connectent désormais le service `calendar` avec le rôle Postgres `calendar_api` au lieu du superuser. Une requête hors des grants de ce rôle échoue donc en local et en CI, comme en staging et en prod. Postgres, Liquibase et le seeder gardent le superuser. (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
+
 #### Technique
-- Les stacks docker-compose (`docker-compose.yml`, `docker-compose-integration.yml`, `docker-compose-performance.yml`, `docker-compose-security.yml`) connectent désormais `calendar` avec le rôle Postgres `calendar_api` au lieu du superuser, et Liquibase reçoit `-Dcalendar_api_password`. Effet limité aux stacks locales et de test : une requête hors des grants du rôle y échoue en `42501`. Les fixtures de test gardent le superuser, et `tests/queries/db_role.rs` vérifie le rôle. Le diff est tronqué, donc le détail des tests reste à vérifier. (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
-- Bibliothèque `mairie360_api_lib` passée de 3.4.0 à 4.2.0 (dépendances et dev-dependencies, features inchangées). (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
-- Ajout d'exceptions `cargo audit` dans `.cargo/audit.toml` pour RUSTSEC-2026-0367, 0368 et 0369 (zip 8, build-dependency de utoipa-swagger-ui). (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
-- Mises à jour de dépendances : utoipa-swagger-ui 10.0.2 ([#189](https://github.com/mairie360/Calendar_API/pull/189)), tokio 1.54.0 ([#186](https://github.com/mairie360/Calendar_API/pull/186)) et image Docker de développement `rust:1.99-bookworm` épinglée au digest 5c1a173 ([#197](https://github.com/mairie360/Calendar_API/pull/197)).
-- CI : workflows de promotion manuelle `promote-staging.yml` et `promote-prod.yml` ajoutés, et `renovate.json` couvre les trois fichiers (MAIR-494, [#191](https://github.com/mairie360/Calendar_API/pull/191)). Le pin mairie360/CICD passe de v4.2.2 à v4.3.0, v4.3.1, v4.3.2 puis v4.4.0 (MAIR-571 et renovate, [#185](https://github.com/mairie360/Calendar_API/pull/185), [#187](https://github.com/mairie360/Calendar_API/pull/187), [#188](https://github.com/mairie360/Calendar_API/pull/188), [#184](https://github.com/mairie360/Calendar_API/pull/184), [#181](https://github.com/mairie360/Calendar_API/pull/181)). Le journal de release est rédigé dans `RELEASE_JOURNAL.md` par le workflow CICD, sans effet sur le service.
-- CI : pins mairie360/CICD v4.4.1 puis v4.4.2 dans `cicd.yml` et les workflows de promotion, et mise à jour de `CLAUDE.md` sur la promotion (MAIR-612, [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196)).
+
+- Tests des APIs : le code testé passe par le rôle `calendar_api` (`common::api_db()`, `AppState` sur `calendar_db_url()`), avec un test de non-régression `tests/queries/db_role.rs`. `mairie_api_lib` passe de 3.4.0 à 4.2.0 (dépendances et dev-dependencies). (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
+- Sécurité des dépendances : `rustls-webpki`, `webpki-roots` et `webpki-root-certs` sont mis à jour pour débloquer `cargo audit`, et trois advisories `zip` (RUSTSEC-2026-0367/0368/0369) sont ignorées dans `.cargo/audit.toml`. (MAIR-494, [#191](https://github.com/mairie360/Calendar_API/pull/191), [#180](https://github.com/mairie360/Calendar_API/pull/180))
+- Promotion : `cicd.yml` ne va plus au-delà de `release-dev`. Les nouveaux workflows `promote-staging.yml` et `promote-prod.yml` se lancent manuellement, et chaque release réécrit `RELEASE_JOURNAL.md` sur `main` (MAIR-494, [#191](https://github.com/mairie360/Calendar_API/pull/191) ; MAIR-571, [#184](https://github.com/mairie360/Calendar_API/pull/184)).
+- Dépendances : `tokio` passe en 1.54.0 ([#186](https://github.com/mairie360/Calendar_API/pull/186)) et `utoipa-swagger-ui` en 10.0.2 ([#189](https://github.com/mairie360/Calendar_API/pull/189)). Le pin `mairie360/CICD` évolue de v4.2.1 à v4.4.1 au fil des PR Renovate et de ([#181](https://github.com/mairie360/Calendar_API/pull/181), [#184](https://github.com/mairie360/Calendar_API/pull/184), [#185](https://github.com/mairie360/Calendar_API/pull/185), [#187](https://github.com/mairie360/Calendar_API/pull/187), [#188](https://github.com/mairie360/Calendar_API/pull/188), [#191](https://github.com/mairie360/Calendar_API/pull/191), [#194](https://github.com/mairie360/Calendar_API/pull/194)).
+- Documentation : `CLAUDE.md` décrit la promotion, le rôle `calendar_api` des tests et la règle des grants.
+- Image de dev : `development.Dockerfile` reste aligné sur le digest de `rust:1.99-bookworm` (5c1a173, [#197](https://github.com/mairie360/Calendar_API/pull/197)).
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
 #### Technique
-- Image Docker de développement `rust:1.99-bookworm` épinglée au digest 5c1a173 (`development.Dockerfile`), sans effet sur le service. ([#197](https://github.com/mairie360/Calendar_API/pull/197))
-- Pins mairie360/CICD passés à v4.4.1 puis v4.4.2 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`, sans changement fonctionnel côté service. (MAIR-612, [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196))
+
+- Image de dev : `development.Dockerfile` passe au digest `rust:1.99-bookworm` 5c1a173, aligné sur la prod (MAIR-427, [#197](https://github.com/mairie360/Calendar_API/pull/197)).
+- Release : `mairie360/CICD` passe de v4.4.0 à v4.4.2 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`. La v4.4.2 corrige la création du tag et de la release de `promote-prod`, en échec 403 avec la v4.4.1 (MAIR-612, [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196)).
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
+#### Changements de comportement
+
+- Les stacks Docker Compose locales et de CI (`docker-compose.yml`, `docker-compose-integration.yml`, `docker-compose-performance.yml`, `docker-compose-security.yml`) connectent désormais le service `calendar` avec le rôle Postgres `calendar_api` au lieu du superuser. Une requête hors des grants de ce rôle échoue donc en local et en CI, comme en staging et en prod. Postgres, Liquibase et le seeder gardent le superuser. (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
+
 #### Technique
-- Workflows de promotion manuelle vers staging et prod (`promote-staging.yml`, `promote-prod.yml`), `renovate.json` et documentation de promotion dans `CLAUDE.md`, sans changement pour le service. (MAIR-494, [#191](https://github.com/mairie360/Calendar_API/pull/191))
-- Pins mairie360/CICD v4.3.0, v4.3.1, v4.3.2 et v4.4.0 dans les workflows, avec l'étape de journal de release MAIR-571 ajoutée à CICD (sans effet sur le service). ([#185](https://github.com/mairie360/Calendar_API/pull/185), [#187](https://github.com/mairie360/Calendar_API/pull/187), [#188](https://github.com/mairie360/Calendar_API/pull/188), [#184](https://github.com/mairie360/Calendar_API/pull/184))
-- Mises à jour de dépendances : utoipa-swagger-ui 10.0.2 ([#189](https://github.com/mairie360/Calendar_API/pull/189)) et tokio 1.54.0 ([#186](https://github.com/mairie360/Calendar_API/pull/186)). Le diff de ces deux PR est vide.
-- Tests : les tests d'API passent par le rôle `calendar_api` au lieu du superuser, et `mairie360_api_lib` passe de 3.4.0 à 4.2.0. Le diff de ce commit est tronqué, donc le détail reste à vérifier. (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
-- Mise à jour de dépendances : pin mairie360/CICD v4.2.2 ([#181](https://github.com/mairie360/Calendar_API/pull/181)), sans effet sur le service.
+
+- Tests des APIs : le code testé passe par le rôle `calendar_api` (`common::api_db()`, `AppState` sur `calendar_db_url()`), avec un test de non-régression `tests/queries/db_role.rs`. `mairie_api_lib` passe de 3.4.0 à 4.2.0 (dépendances et dev-dependencies). (MAIR-556, [#180](https://github.com/mairie360/Calendar_API/pull/180))
+- Sécurité des dépendances : `rustls-webpki`, `webpki-roots` et `webpki-root-certs` sont mis à jour pour débloquer `cargo audit`, et trois advisories `zip` (RUSTSEC-2026-0367/0368/0369) sont ignorées dans `.cargo/audit.toml`. (MAIR-494, [#191](https://github.com/mairie360/Calendar_API/pull/191), [#180](https://github.com/mairie360/Calendar_API/pull/180))
+- Promotion : `cicd.yml` ne va plus au-delà de `release-dev`. Les nouveaux workflows `promote-staging.yml` et `promote-prod.yml` se lancent manuellement, et chaque release réécrit `RELEASE_JOURNAL.md` sur `main` (MAIR-494, [#191](https://github.com/mairie360/Calendar_API/pull/191) ; MAIR-571, [#184](https://github.com/mairie360/Calendar_API/pull/184)).
+- Dépendances : `tokio` passe en 1.54.0 ([#186](https://github.com/mairie360/Calendar_API/pull/186)) et `utoipa-swagger-ui` en 10.0.2 ([#189](https://github.com/mairie360/Calendar_API/pull/189)). Le pin `mairie360/CICD` passe de v4.2.2 à v4.4.0 via les PR Renovate et ([#181](https://github.com/mairie360/Calendar_API/pull/181), [#185](https://github.com/mairie360/Calendar_API/pull/185), [#187](https://github.com/mairie360/Calendar_API/pull/187), [#188](https://github.com/mairie360/Calendar_API/pull/188)).
+- Documentation : `CLAUDE.md` décrit la promotion, le rôle `calendar_api` des tests et la règle des grants.
 
 ## Historique des passages
 
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-10-21 08:30 UTC | dev | — | `6a5953c` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39568204180) |
 | 2026-10-21 08:29 UTC | dev | — | `fe12f65` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39568348176) |
 | 2026-10-21 03:51 UTC | dev | — | `347766b` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39540184692) |
 | 2026-10-21 03:20 UTC | staging | — | `dbc5e3f` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39537392251) |
