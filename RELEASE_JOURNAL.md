@@ -1,27 +1,25 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "0e0506dd8e1495c6a67d04cbabeb3bd87346495c", "prod": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "prod_tag": "v1.2.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-10-22 02:53 UTC", "prod": "2026-10-21 09:11 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
+<!-- release-journal-state {"dev": "f5d82577178536aa794372dd70fd0b4965497c2a", "prod": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "prod_tag": "v1.2.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-10-22 05:42 UTC", "prod": "2026-10-21 09:11 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.2.0 | `dbc5e3f` | 2026-10-21 09:11 UTC |
 | staging | — | `dbc5e3f` | 2026-10-21 03:20 UTC |
-| dev | — | `0e0506d` | 2026-10-22 02:53 UTC |
+| dev | — | `f5d8257` | 2026-10-22 05:42 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.2.0)
 
 #### Technique
-- Mise à jour de `tokio` de 1.54.0 à 1.54.1, un correctif qui annule le retrait du handle runtime dans les timers. ([#200](https://github.com/mairie360/Calendar_API/pull/200))
-- Image de base `rust:1.99-bookworm` de `development.Dockerfile` épinglée au digest `5c1a173` au lieu de `e12566d`. ([#197](https://github.com/mairie360/Calendar_API/pull/197))
-- Pins `mairie360/CICD` passés de v4.4.0 à v4.4.3 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`, en quatre PR successives. Le correctif v4.4.3 permet à `promote-prod` de pousser le tag et de créer la release avec le token de l'application release. (MAIR-612, [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196), [#199](https://github.com/mairie360/Calendar_API/pull/199))
+- Pipeline de release : `mairie360/CICD` passe de v4.4.0 à v4.4.3 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`. Ces commits corrigent la création de release et de tag en prod, sans effet sur le comportement de l'API. (MAIR-612, [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196), [#199](https://github.com/mairie360/Calendar_API/pull/199))
+- Mises à jour de dépendances : image `rust:1.99-bookworm` épinglée par digest dans `development.Dockerfile` (`e12566d` → `5c1a173`, puis `edaa2a8`, MAIR-427, [#197](https://github.com/mairie360/Calendar_API/pull/197), [#202](https://github.com/mairie360/Calendar_API/pull/202)). La PR [#200](https://github.com/mairie360/Calendar_API/pull/200) annonce aussi tokio 1.54.0 → 1.54.1, mais le diff n'est pas fourni et n'a pas pu être vérifié.
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
 #### Technique
-- Mise à jour de `tokio` de 1.54.0 à 1.54.1, un correctif qui annule le retrait du handle runtime dans les timers. ([#200](https://github.com/mairie360/Calendar_API/pull/200))
-- Image de base `rust:1.99-bookworm` de `development.Dockerfile` épinglée au digest `5c1a173` au lieu de `e12566d`. ([#197](https://github.com/mairie360/Calendar_API/pull/197))
-- Pins `mairie360/CICD` passés de v4.4.0 à v4.4.3 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`, en quatre PR successives. Le correctif v4.4.3 permet à `promote-prod` de pousser le tag et de créer la release avec le token de l'application release. (MAIR-612, [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196), [#199](https://github.com/mairie360/Calendar_API/pull/199))
+- Pipeline de release : `mairie360/CICD` passe de v4.4.0 à v4.4.3 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`. Ces commits corrigent la création de release et de tag en prod, sans effet sur le comportement de l'API. (MAIR-612, [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196), [#199](https://github.com/mairie360/Calendar_API/pull/199))
+- Mises à jour de dépendances : image `rust:1.99-bookworm` épinglée par digest dans `development.Dockerfile` (`e12566d` → `5c1a173`, puis `edaa2a8`, MAIR-427, [#197](https://github.com/mairie360/Calendar_API/pull/197), [#202](https://github.com/mairie360/Calendar_API/pull/202)). La PR [#200](https://github.com/mairie360/Calendar_API/pull/200) annonce aussi tokio 1.54.0 → 1.54.1, mais le diff n'est pas fourni et n'a pas pu être vérifié.
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
@@ -32,6 +30,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-10-22 05:42 UTC | dev | — | `f5d8257` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39728806480) |
 | 2026-10-22 02:53 UTC | dev | — | `0e0506d` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39712216266) |
 | 2026-10-21 09:11 UTC | prod | v1.2.0 | `dbc5e3f` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39573686812) |
 | 2026-10-21 09:07 UTC | dev | — | `6460af9` | [run](https://github.com/mairie360/Calendar_API/actions/runs/39573578570) |
