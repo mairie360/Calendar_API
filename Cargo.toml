@@ -30,6 +30,8 @@ log = "0.4"
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto"] }
 # Feeds the in-memory span exporter of `tests/endpoints/telemetry.rs`.
 tracing-subscriber = "0.3.23"
+# Reads access-matrix.yaml in tests/endpoints/access_matrix.rs (MAIR-288).
+yaml_serde = "0.10"
 
 
 [profile.dev]

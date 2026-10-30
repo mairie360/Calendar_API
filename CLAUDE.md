@@ -233,6 +233,12 @@ or more than `MAX_CREATED_MEMBERS` (500) are a `400` before any write. The BFF c
 way instead of one `POST …/members/` per member, which hit the per-user rate limit and left orphan events when its
 compensating `DELETE` got a `429` too.
 
+`access-matrix.yaml` (MAIR-288) is the access decision of every operation of `ApiDoc` (roles that pass,
+relations to the event: creator, member, assigned Responsable sharing a group with the creator; personal
+fields of the answer): `tests/endpoints/access_matrix.rs` fails when an operation is missing from it or
+unknown, and calls each operation on a private event as each role and relation (an allowed caller never
+gets 401 / 403 / 404, the others get 403). **A new route goes into the matrix.**
+
 Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500, text body).
 
 Tests (`tests/queries/`) hit a real Postgres testcontainer: `common::api_db().await` (connected as `calendar_api`),
