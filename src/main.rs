@@ -7,6 +7,7 @@ use calendar_api::endpoints::rate_limit::{
 };
 use calendar_api::endpoints::swagger::{swagger_enabled_from_env, ApiDoc};
 use calendar_api::endpoints::{config, health, ready};
+use calendar_api::request_log::request_logger;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::logging::telemetry::{init_telemetry, TracingLogger};
@@ -64,7 +65,8 @@ async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
-            .wrap(middleware::Logger::default())
+            // Method and path only, never the query string (MAIR-290, see `request_log`).
+            .wrap(request_logger())
             // One span per request (MAIR-503), including those refused by `JwtMiddleware`; it
             // continues the `traceparent` of the BFF.
             .wrap(TracingLogger::default())
