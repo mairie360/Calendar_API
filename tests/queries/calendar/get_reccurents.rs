@@ -1,17 +1,14 @@
-use crate::common::{create_event, event_input};
+use crate::common::{api_db, create_event, event_input};
 use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
 use calendar_api::database::event::add_member::view::AddUserToEventQueryView;
 use calendar_api::database::event::model::{EventRecurrence, RecurrenceFrequency};
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
-use mairie360_api_lib::database::db_interface::Database;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_member_sees_event_without_owning_it() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
     let start = Utc::now();
     let end = start + Duration::hours(1);
 
@@ -47,8 +44,7 @@ async fn test_member_sees_event_without_owning_it() {
 #[tokio::test]
 #[serial]
 async fn test_recurring_event_is_listed_while_its_rule_overlaps_the_window() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
     let start = Utc.with_ymd_and_hms(2025, 1, 6, 9, 0, 0).unwrap();
     let mut input = event_input("Permanence", None, start, start + Duration::hours(2));
     input.recurrence = Some(EventRecurrence {

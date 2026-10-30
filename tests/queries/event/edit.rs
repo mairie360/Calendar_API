@@ -1,4 +1,4 @@
-use crate::common::{create_event, event_input, recurrence_rule_count};
+use crate::common::{api_db, create_event, event_input, fixtures_db, recurrence_rule_count};
 use calendar_api::database::event::edit::view::{
     DeleteOrphanRecurrenceQueryView, EditEventQueryView,
 };
@@ -6,7 +6,6 @@ use calendar_api::database::event::get::view::{GetEventQueryResultView, GetEvent
 use calendar_api::database::event::model::{EventCategory, EventRecurrence, RecurrenceFrequency};
 use chrono::{Duration, TimeZone, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database};
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 async fn read(db: &Database, id: u64) -> GetEventQueryResultView {
@@ -31,8 +30,8 @@ fn test_edit_view_params() {
 #[tokio::test]
 #[serial]
 async fn test_edit_event_updates_fields_and_recurrence_lifecycle() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
     let start = Utc.with_ymd_and_hms(2026, 11, 2, 14, 0, 0).unwrap();
     let id = create_event(
         &db,
@@ -82,18 +81,18 @@ async fn test_edit_event_updates_fields_and_recurrence_lifecycle() {
         .await
         .unwrap());
     assert_eq!(read(&db, id).await.recurrence_id(), None);
-    assert_eq!(recurrence_rule_count(&db, rule_id).await, 1);
+    assert_eq!(recurrence_rule_count(&fixtures, rule_id).await, 1);
     db.execute(&DeleteOrphanRecurrenceQueryView::new(rule_id as u64))
         .await
         .unwrap();
-    assert_eq!(recurrence_rule_count(&db, rule_id).await, 0);
+    assert_eq!(recurrence_rule_count(&fixtures, rule_id).await, 0);
 }
 
 #[tokio::test]
 #[serial]
 async fn test_orphan_cleanup_keeps_attached_rules() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
     let start = Utc::now();
     let mut input = event_input("Récurrent", None, start, start + Duration::hours(1));
     input.recurrence = Some(EventRecurrence {
@@ -109,14 +108,13 @@ async fn test_orphan_cleanup_keeps_attached_rules() {
         .await
         .unwrap();
 
-    assert_eq!(recurrence_rule_count(&db, rule_id).await, 1);
+    assert_eq!(recurrence_rule_count(&fixtures, rule_id).await, 1);
 }
 
 #[tokio::test]
 #[serial]
 async fn test_edit_unknown_event() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
     let start = Utc::now();
 
     let updated: bool = db

@@ -1,4 +1,6 @@
-use crate::common::{approval_decision, create_event, create_group, create_user, event_input};
+use crate::common::{
+    api_db, approval_decision, create_event, create_group, create_user, event_input, fixtures_db,
+};
 use calendar_api::database::event::access::view::{
     ApprovalStatus, EventAccess, EventAccessQueryView,
 };
@@ -15,7 +17,6 @@ use calendar_api::database::event::validation::view::{
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::database::error::DbError;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 async fn access(db: &Database, event_id: u64, user_id: u64) -> EventAccess {
@@ -60,9 +61,9 @@ async fn approval_circuit(db: &Database) -> (u64, u64, u64, u64) {
 #[tokio::test]
 #[serial]
 async fn test_event_requiring_approval_is_validated_by_a_responsable_of_the_creator_group() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let (creator, responsable, foreign_responsable, outsider) = approval_circuit(&db).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let (creator, responsable, foreign_responsable, outsider) = approval_circuit(&fixtures).await;
     let event_id = private_event(&db, creator, "Congés").await;
 
     // Pending from creation, whoever is assigned.
@@ -105,7 +106,7 @@ async fn test_event_requiring_approval_is_validated_by_a_responsable_of_the_crea
     .await
     .unwrap();
     assert_eq!(
-        approval_decision(&db, event_id).await,
+        approval_decision(&fixtures, event_id).await,
         ("validated".to_string(), Some(responsable as i32), true)
     );
     let members: Vec<Member> = db
@@ -135,9 +136,9 @@ async fn test_event_requiring_approval_is_validated_by_a_responsable_of_the_crea
 #[tokio::test]
 #[serial]
 async fn test_member_changes_never_overwrite_the_approval() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let (creator, responsable, _, outsider) = approval_circuit(&db).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let (creator, responsable, _, outsider) = approval_circuit(&fixtures).await;
 
     // Never inviting a Responsable leaves the event pending.
     let never_reviewed = private_event(&db, creator, "Sans responsable").await;
@@ -166,7 +167,7 @@ async fn test_member_changes_never_overwrite_the_approval() {
         ApprovalStatus::Rejected
     );
     assert_eq!(
-        approval_decision(&db, rejected).await,
+        approval_decision(&fixtures, rejected).await,
         ("refused".to_string(), Some(responsable as i32), true)
     );
 }
@@ -174,9 +175,9 @@ async fn test_member_changes_never_overwrite_the_approval() {
 #[tokio::test]
 #[serial]
 async fn test_edit_resets_the_approval_only_when_asked() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let (creator, responsable, _, _) = approval_circuit(&db).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let (creator, responsable, _, _) = approval_circuit(&fixtures).await;
     let start = Utc::now();
     let input = event_input("Permanence", None, start, start + Duration::hours(2));
     let event_id = create_event(&db, creator, &input).await;
@@ -202,7 +203,7 @@ async fn test_edit_resets_the_approval_only_when_asked() {
         .fetch_scalar::<bool, _>(&EditEventQueryView::new(event_id, &renamed, false))
         .await
         .unwrap());
-    assert_eq!(approval_decision(&db, event_id).await.0, "validated");
+    assert_eq!(approval_decision(&fixtures, event_id).await.0, "validated");
 
     let mut moved = renamed.clone();
     moved.start += Duration::days(1);
@@ -213,7 +214,7 @@ async fn test_edit_resets_the_approval_only_when_asked() {
         .await
         .unwrap());
     assert_eq!(
-        approval_decision(&db, event_id).await,
+        approval_decision(&fixtures, event_id).await,
         ("pending".to_string(), None, false)
     );
     assert!(access(&db, event_id, responsable).await.can_validate());
@@ -222,11 +223,11 @@ async fn test_edit_resets_the_approval_only_when_asked() {
 #[tokio::test]
 #[serial]
 async fn test_event_created_by_a_responsable_never_requires_approval() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let creator = create_user(&db, "Chef", Some("Responsable")).await;
-    let colleague = create_user(&db, "Collègue", Some("Responsable")).await;
-    create_group(&db, creator, &[creator, colleague]).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let creator = create_user(&fixtures, "Chef", Some("Responsable")).await;
+    let colleague = create_user(&fixtures, "Collègue", Some("Responsable")).await;
+    create_group(&fixtures, creator, &[creator, colleague]).await;
     let event_id = private_event(&db, creator, "Réunion").await;
 
     add_member(&db, event_id, creator).await;
@@ -241,10 +242,10 @@ async fn test_event_created_by_a_responsable_never_requires_approval() {
 #[tokio::test]
 #[serial]
 async fn test_visibility_and_creator_read_access() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let creator = create_user(&db, "Agent", Some("User")).await;
-    let outsider = create_user(&db, "Externe", Some("User")).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let creator = create_user(&fixtures, "Agent", Some("User")).await;
+    let outsider = create_user(&fixtures, "Externe", Some("User")).await;
     let start = Utc::now();
     let public_event = create_event(
         &db,
@@ -269,8 +270,7 @@ async fn test_visibility_and_creator_read_access() {
 #[tokio::test]
 #[serial]
 async fn test_unknown_event_access() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
 
     let unknown = access(&db, 999_999, 1).await;
 
@@ -280,13 +280,13 @@ async fn test_unknown_event_access() {
 #[tokio::test]
 #[serial]
 async fn test_assignment_scope_follows_roles_and_groups() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
-    let agent = create_user(&db, "Agent", Some("User")).await;
-    let teammate = create_user(&db, "Equipier", Some("User")).await;
-    let stranger = create_user(&db, "Inconnu", Some("User")).await;
-    let maire = create_user(&db, "Maire", Some("Maire")).await;
-    create_group(&db, agent, &[agent, teammate]).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
+    let agent = create_user(&fixtures, "Agent", Some("User")).await;
+    let teammate = create_user(&fixtures, "Equipier", Some("User")).await;
+    let stranger = create_user(&fixtures, "Inconnu", Some("User")).await;
+    let maire = create_user(&fixtures, "Maire", Some("Maire")).await;
+    create_group(&fixtures, agent, &[agent, teammate]).await;
 
     for (caller, user, expected) in [
         (agent, agent, true),

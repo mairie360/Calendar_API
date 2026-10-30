@@ -1,4 +1,4 @@
-use crate::common::{create_event, event_input, recurrence_rule_count};
+use crate::common::{api_db, create_event, event_input, fixtures_db, recurrence_rule_count};
 use calendar_api::database::event::{
     create::view::CreateEventQueryView,
     delete::view::DeleteEventQueryView,
@@ -6,16 +6,13 @@ use calendar_api::database::event::{
     model::{EventRecurrence, RecurrenceFrequency},
 };
 use chrono::Utc;
-use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::database::error::DbError;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_delete_event_success() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
 
     let start = Utc::now();
     let end = start + chrono::Duration::hours(1);
@@ -37,8 +34,7 @@ async fn test_delete_event_success() {
 #[tokio::test]
 #[serial]
 async fn test_delete_event_not_found() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
 
     // Deleting an unknown event is a no-op without error.
     let view = DeleteEventQueryView::new(99999);
@@ -52,8 +48,8 @@ async fn test_delete_event_not_found() {
 #[tokio::test]
 #[serial]
 async fn test_delete_event_removes_its_recurrence_rule_in_the_same_statement() {
-    let (_container, host) = get_shared_db().await;
-    let db = Database::new(host).await;
+    let db = api_db().await;
+    let fixtures = fixtures_db().await;
     let start = Utc::now();
     let mut input = event_input(
         "Permanence",
@@ -77,5 +73,5 @@ async fn test_delete_event_removes_its_recurrence_rule_in_the_same_statement() {
 
     db.execute(&DeleteEventQueryView::new(id)).await.unwrap();
 
-    assert_eq!(recurrence_rule_count(&db, rule_id).await, 0);
+    assert_eq!(recurrence_rule_count(&fixtures, rule_id).await, 0);
 }

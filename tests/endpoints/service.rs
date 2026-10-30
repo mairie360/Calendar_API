@@ -3,12 +3,11 @@ use actix_web::{web, App};
 use calendar_api::endpoints::ready::ready;
 use mairie360_api_lib::state::AppState;
 use mairie360_api_lib::test_setup::db_setup::start_postgres_container;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use serial_test::serial;
 
 use super::{bearer, TestContext};
-use crate::common::create_user;
+use crate::common::{calendar_db_url, create_user};
 use crate::{init_app, status_of};
 
 /// Status and body of `GET /ready` for an app state on the given Redis and Postgres URLs.
@@ -28,15 +27,15 @@ async fn call_ready(state: AppState) -> (u16, String) {
 #[tokio::test]
 #[serial]
 async fn ready_checks_postgres_and_redis() {
-    let (_container, pg_url) = get_shared_db().await;
+    let pg_url = calendar_db_url().await;
     let (_redis, redis) = start_redis_container().await;
 
     assert_eq!(
-        readiness(&redis.url, pg_url).await,
+        readiness(&redis.url, &pg_url).await,
         (200, "READY".to_string())
     );
     assert_eq!(
-        readiness("redis://127.0.0.1:1", pg_url).await,
+        readiness("redis://127.0.0.1:1", &pg_url).await,
         (503, "Redis unavailable".to_string())
     );
 }
