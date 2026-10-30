@@ -42,7 +42,7 @@ operations:
   POST /api/v1/events/:
     access: authenticated
     roles: [Admin, Maire, Responsable, User, Guest]
-    note: "an event created by a User or Guest waits for a Responsable's approval"
+    note: "an event created by a User or Guest waits for a Responsable's approval; `members` only takes users of the caller's assignment scope (Admin and Maire: anyone, others: themselves and their groups), otherwise 403"
 
   GET /api/v1/events/{event_id}/:
     access: authenticated

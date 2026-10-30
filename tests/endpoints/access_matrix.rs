@@ -150,6 +150,13 @@ fn request(spec: &Value, name: &str, f: &Fixtures, joiner: u64) -> TestRequest {
         .clone();
     let body = match name {
         "POST /api/v1/events/{event_id}/members/" => Some(json!({ "user_id": joiner })),
+        // The example assigns seeded users (MAIR-562), outside the assignment scope of most
+        // callers: who may be assigned is the members rule, not the access to the route.
+        "POST /api/v1/events/" => {
+            let mut example = example;
+            example.as_object_mut().unwrap().remove("members");
+            Some(example)
+        }
         _ if example.is_null() => None,
         _ => Some(example),
     };
