@@ -7,6 +7,7 @@ use crate::database::event::model::{
     is_event_date, EventCategory, EventRecurrence, EventVisibility,
 };
 use crate::endpoints::error::ApiError;
+use crate::endpoints::v1::events::id::get::view::Member;
 use crate::endpoints::v1::events::DATE_RULE;
 
 /// Widest period `GET /calendar` accepts, in days (a leap year).
@@ -87,6 +88,16 @@ pub struct EventView {
     /// Règle de répétition, ou `null` pour un événement ponctuel. Un événement récurrent
     /// apparaît dès que sa règle chevauche la période demandée.
     pub recurrence: Option<EventRecurrence>,
+    /// Assigned members sorted by id, each carrying the event's approval status: the same list,
+    /// with the same shape, as `members` of `GET /api/v1/events/{event_id}/`, so the calendar
+    /// does not need one detail call per event. Empty (`[]`, never `null`) when nobody is
+    /// assigned, or when the caller may not read the event's detail (a `Private` event listed
+    /// only because the caller is its owner without being its creator nor a member).
+    #[schema(example = json!([
+        { "id": 42, "validation_status": "validated" },
+        { "id": 51, "validation_status": "validated" }
+    ]))]
+    pub members: Vec<Member>,
 }
 
 impl From<Event> for EventView {
@@ -103,6 +114,14 @@ impl From<Event> for EventView {
             service: event.service,
             location: event.location,
             recurrence: event.recurrence,
+            members: event
+                .members
+                .into_iter()
+                .map(|member| Member {
+                    id: id_from_sql(member.user_id()),
+                    validation_status: member.validation_status(),
+                })
+                .collect(),
         }
     }
 }

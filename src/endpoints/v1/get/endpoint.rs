@@ -2,7 +2,7 @@ use actix_web::{get, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-use crate::database::calendar::get::view::{Event, GetCalendarQueryView};
+use crate::database::calendar::get::view::{Event, GetCalendarQueryView, CALENDAR_CACHE};
 use crate::endpoints::error::{database_error, ApiError};
 use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
 
@@ -18,8 +18,19 @@ use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
                    replaying the recurrences client side.\n\n\
                    Both bounds are inclusive. `end` must not be before `start` and the period is \
                    at most 366 days wide, otherwise the response is `400`. No pagination.\n\n\
-                   List view: neither the members nor the approval status are included, call \
-                   `GET /api/v1/events/{event_id}/` for them.",
+                   Each event carries its `members` (sorted by id) and their \
+                   `validation_status` (the event's approval status, repeated on every member), \
+                   exactly like `GET /api/v1/events/{event_id}/`: a period is displayed in one \
+                   call, with no per-event request. The members are only exposed when the caller \
+                   could read the event's detail (`Public` event, member or creator); otherwise \
+                   the list is empty. The description, the `permissions` and the owner stay on \
+                   the detail route.\n\n\
+                   **Cache:** the page is cached in Redis for 30 seconds per caller and period \
+                   (`start`, `end`). Every write of this API (event created, edited or deleted, \
+                   member added or removed, approval decided) invalidates it once committed, so \
+                   a client reads its own writes immediately. Changes made outside this API (a \
+                   user deleted in Core removing their memberships) show up within those 30 \
+                   seconds. When Redis is unreachable the page is read from the database.",
     params(GetCalendarParams),
     responses(
         (
@@ -38,7 +49,24 @@ use crate::endpoints::v1::get::view::{GetCalendarParams, GetCalendarResultView};
                         "category": "meeting",
                         "service": "Secrétariat général",
                         "location": "Salle du conseil",
-                        "recurrence": { "frequency": "monthly", "interval": 1, "days_of_week": null, "ends_on": "2027-06-30" }
+                        "recurrence": { "frequency": "monthly", "interval": 1, "days_of_week": null, "ends_on": "2027-06-30" },
+                        "members": [
+                            { "id": 42, "validation_status": "validated" },
+                            { "id": 51, "validation_status": "validated" }
+                        ]
+                    },
+                    {
+                        "id": 34,
+                        "name": "Permanence des élus",
+                        "start": "2026-10-12T09:00:00Z",
+                        "end": "2026-10-12T12:00:00Z",
+                        "is_member": false,
+                        "visibility": "Public",
+                        "category": "other",
+                        "service": null,
+                        "location": "Mairie annexe",
+                        "recurrence": null,
+                        "members": []
                     }
                 ]
             })
@@ -86,17 +114,24 @@ pub async fn get_calendar(
     params: web::Query<GetCalendarParams>,
 ) -> Result<impl Responder, ApiError> {
     params.validate()?;
-    let events: Vec<Event> = state
-        .get_smart_db()
-        .fetch_all(&GetCalendarQueryView::new(
-            params.start,
-            params.end,
-            auth_user.id,
-        ))
-        .await
-        .map_err(database_error)?;
+    let db = state.get_smart_db();
+    // Keyed by the caller: the page depends on who asks (private events, members' visibility).
+    let key = CALENDAR_CACHE.for_user(auth_user.id, &(params.start, params.end));
+    let page = db
+        .cached(&key, async || {
+            let events: Vec<Event> = db
+                .fetch_all(&GetCalendarQueryView::new(
+                    params.start,
+                    params.end,
+                    auth_user.id,
+                ))
+                .await
+                .map_err(database_error)?;
+            Ok::<_, ApiError>(GetCalendarResultView {
+                events: events.into_iter().map(Into::into).collect(),
+            })
+        })
+        .await?;
 
-    Ok(HttpResponse::Ok().json(GetCalendarResultView {
-        events: events.into_iter().map(Into::into).collect(),
-    }))
+    Ok(HttpResponse::Ok().json(page))
 }

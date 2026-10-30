@@ -77,7 +77,7 @@ impl KeyExtractor for UserKeyExtractor {
             .get::<AuthenticatedUser>()
             .map(|user| user.id)
             .ok_or_else(|| {
-                log::error!("rate limiter mounted before JwtMiddleware: no authenticated user");
+                tracing::error!("rate limiter mounted before JwtMiddleware: no authenticated user");
                 SimpleKeyExtractionError::new("Internal error.")
             })
     }

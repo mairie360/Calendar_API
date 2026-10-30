@@ -44,7 +44,7 @@ pub async fn check_dependencies(state: &AppState) -> Result<(), Dependency> {
         .fetch_scalar::<i32, _>(&PingDatabaseQueryView::default())
         .await
     {
-        log::warn!(target: "calendar_api::readiness", "PostgreSQL unreachable: {error:?}");
+        tracing::warn!(target: "calendar_api::readiness", "PostgreSQL unreachable: {error:?}");
         return Err(Dependency::Postgres);
     }
     if let Err(error) = state
@@ -52,7 +52,7 @@ pub async fn check_dependencies(state: &AppState) -> Result<(), Dependency> {
         .secure_get::<String>(REDIS_PROBE_KEY)
         .await
     {
-        log::warn!(target: "calendar_api::readiness", "Redis unreachable: {error:?}");
+        tracing::warn!(target: "calendar_api::readiness", "Redis unreachable: {error:?}");
         return Err(Dependency::Redis);
     }
     Ok(())

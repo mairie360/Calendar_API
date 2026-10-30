@@ -44,3 +44,15 @@ on `localhost:3002`:
 docker run --rm --network host -v "$PWD/tests/postman:/etc/newman:ro" postman/newman:6.1.3-alpine \
   run collection.json --environment environment.json
 ```
+
+## `GET /api/v1/calendar`: aggregated read and cache (MAIR-524)
+
+The calendar returns, for each event of the period, its `members` and their `validation_status` (the
+event's approval status), exactly like `GET /api/v1/events/{event_id}/`: a period is displayed in one
+call. Members are only exposed when the caller could read the event's detail (public event, member or
+creator), `[]` otherwise.
+
+Each page is cached in Redis for 30 seconds per caller and period. Every write of this API (event
+created, edited or deleted, member added or removed, approval decided) invalidates the cache once
+committed; changes made by another API show up within the 30 seconds. Without Redis the page is read
+from Postgres.
