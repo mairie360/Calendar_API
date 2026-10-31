@@ -1,6 +1,9 @@
 # Images are pinned by digest (Renovate bumps tag and digest together): a re-pushed tag cannot
 # change what gets built. Same toolchain as API_template.
-FROM rust:1.99-slim-bookworm@sha256:452176c0cefca88c0b3184ce85a4eb03e3d4fa05d2afb5366abcba853221019e AS builder
+# Builder, runtime and development.Dockerfile share one Debian release (13 "trixie"), so the
+# binary links against the glibc and OpenSSL the runtime image ships (MAIR-741: Debian 12's
+# distroless libssl3 is unpatched).
+FROM rust:1.99-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
@@ -28,7 +31,7 @@ RUN touch src/main.rs src/lib.rs && cargo build --release --locked
 # Kubernetes can enforce `runAsNonRoot: true`. The API binds an unprivileged
 # port (`PORT`, 3000+) and never writes to the filesystem. The binary stays
 # owned by root (read + execute only for the runtime user).
-FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:3ee00291cf386ec52a552e6a858d555debd74776eb4bfa53fa3df2cd6677515e
 WORKDIR /app
 
 COPY --from=builder /usr/src/app/target/release/calendar_api /app/calendar-api
