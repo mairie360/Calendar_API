@@ -38,8 +38,10 @@ Tests:
 - `cargo test --test integration_test` — only the integration suite.
 - `cargo test --test integration_test endpoints` — the handler tests (`tests/endpoints/`): the `/api` scope
   mounted like `main.rs` (`JwtMiddleware` + `endpoints::config`) on the shared database, with JWTs signed by
-  `endpoints::bearer`. Every refusal (401, 403, 404, 409, 400) of a handler belongs there. `token_refusals.rs` sweeps every operation of
-  `ApiDoc` declaring `jwt` (`401` without a token, with another scheme, garbage, another secret, an expired token,
+  `endpoints::bearer` like Core signs them (MAIR-680: `EdDSA` with the lib's test key pair, `sign_like_core`; the
+  process only has `JWT_PUBLIC_KEY`, no `JWT_SECRET`). Every refusal (401, 403, 404, 409, 400) of a handler belongs there. `token_refusals.rs` sweeps every operation of
+  `ApiDoc` declaring `jwt` (`401` without a token, with another scheme, garbage, an HS256 token whatever its secret, an
+  EdDSA token signed with another key under Core's `kid` or without/with another `aud`, an expired token,
   `alg: none`, a swapped payload or an asymmetric algorithm; `404` for an unknown or archived account), and
   `rate_limit.rs` checks the production quota of `RateLimit::from_env()` (`429` past the burst, `Retry-After` of
   at least 1 s).
@@ -74,14 +76,22 @@ published `ghcr.io/mairie360/calendar-api:dev-<sha>` image; when it is empty the
 `development.Dockerfile` first. That image is distroless (no shell, no curl), so readiness is a `calendar-ready` sidecar
 polling `/ready`, and dependent services wait for it with `service_completed_successfully`.
 
-**No test credential is committed (MAIR-428).** The three scripts source `test_secrets.sh`, which exports a random
-`JWT_SECRET` per run (`openssl rand -hex 32`, an exported value wins) and a `sign_jwt <sub> <role> <ttl>` helper; the
-compose files require it (`${JWT_SECRET:?…}`), so run the scripts rather than `docker compose up` on those files.
-The published image refuses a weak or well-known secret (API_lib 2.0.0); only the local dev `docker-compose.yml`
-keeps `b"secret"`, with `JWT_ALLOW_WEAK_SECRET=true`.
+**Session tokens (MAIR-680).** Only Core_API signs them, with its Ed25519 key (`EdDSA`, `kid` = RFC 7638
+thumbprint, `iss` `mairie360-core`, `aud` `mairie360`). This API only gets `JWT_PUBLIC_KEY` (Core's public key as
+PEM, several `PUBLIC KEY` blocks during a rotation, `\n`-escaped line breaks accepted) and checks them with the lib
+(4.3.0). No `JWT_SECRET`: while it is set the lib still accepts HS256 tokens signed with it (transition), so a
+deployment removes it once `JWT_PUBLIC_KEY` is in place, and every HS256 token is then refused.
+
+**No test credential is committed (MAIR-428).** The test scripts source `test_secrets.sh`, which generates a fresh
+Ed25519 key pair per run (an exported `JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY` pair wins), exports the public key and
+signs the runners' tokens with the private one like Core does (`sign_jwt <sub> <role> <ttl> [key]`,
+`sign_jwt_file` for k6); the compose files require `JWT_PUBLIC_KEY` (`${JWT_PUBLIC_KEY:?…}`), so run the scripts
+rather than `docker compose up` on those files. The private key never reaches the API. The published image refuses
+the lib's committed test key; only the local dev `docker-compose.yml` defaults `JWT_PUBLIC_KEY` to it, with
+`JWT_ALLOW_WEAK_SECRET=true`.
 
 The ZAP scan is authenticated: `security-scan` injects `ZAP_AUTH_TOKEN`, an admin JWT (`sub=1`, 2 h) that
-`security_test.sh` signs with the run's secret, on every request, waits for the `seeder`
+`security_test.sh` signs with the run's key, on every request, waits for the `seeder`
 service (`init-test.sql`: plain `User` account 2, `Responsable` 3, user 1 is the Admin created by liquibase) and fails on any alert
 not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://calendar:3002` is required: the spec's
 `servers` are unreachable from the ZAP container. Keep `rules.tsv` identical in every API. ZAP builds its requests
@@ -102,7 +112,7 @@ handlers run in the `reads` scenario (up to 100 VUs) as a random seeded agent (t
 a whole year one call in ten, one of their events and its members), the other methods in the `writes` scenario (10
 VUs), each handler creating and deleting its own event so they are order-independent; a `calendar_rush` scenario
 sends `GET /calendar` at a fixed 100 req/s. Both calendar operations check that every listed event carries a
-`members` array and every seeded event its 3 seeded members, sorted, `validated` (MAIR-524). The script forges its HS256 JWTs (the run's `JWT_SECRET`, passed by the compose file; valid 2 h): the
+`members` array and every seeded event its 3 seeded members, sorted, `validated` (MAIR-524). k6 cannot sign Ed25519, so `performance_test.sh` signs the callers' EdDSA tokens (valid 2 h) into a JSON file mounted at `/tokens.json` (a new seeded caller needs its id in that script): the
 validation circuit needs an event created by user 2 (`User`) with user 3 (`Responsable`, sharing group 1000 with
 user 2, both from `init-test.sql`) assigned, then approved by user 3. One `p(95)` threshold per `op` tag (200 ms
 reads, 500 ms writes), `checks == 100%` (status and seeded rows), `dropped_iterations == 0` and `http_req_failed == 0`. Two load profiles (`K6_PROFILE`, passed by the compose file): `ci` (default) is what the 4 vCPU CI runner holds with the strict thresholds (30 readers, 4 writers, rush at 30 req/s); `stress` is the high load (100 readers, 10 writers, 100 req/s), run by hand with `K6_PROFILE=stress ./performance_test.sh` to find the breaking point, not on every push. Keep `init-perf.sql`
@@ -113,9 +123,11 @@ spec's path examples (event 21 with user 51 assigned) so ZAP reaches real rows.
 
 `tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
 `tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
-committed default (`http://localhost:3002`) stays usable from a host shell. There is no login route here, so the
-collection pre-request script forges the HS256 JWTs itself (claims `sub`/`role`/`exp`, signed with the `jwt_secret`
-variable, which the compose file sets to the run's `JWT_SECRET`; empty in `environment.json`) for the seeded Admin (user 1) and a plain user (user 2, from `init-test.sql`). The scenario creates
+committed default (`http://localhost:3002`) stays usable from a host shell. There is no login route here and the
+Postman sandbox cannot sign EdDSA, so `integration_test.sh` signs the JWTs with the run's key (`test_secrets.sh`)
+and the compose file passes them with `--env-var`: `jwt_admin` (user 1), `jwt_agent` (user 2, from
+`init-test.sql`), `jwt_forged` (Core's `kid`, another key) and `jwt_expired`; the pre-request script only forges
+`jwt_hs256`, an HS256 token that must be refused (MAIR-680). From a host shell, fill those variables yourself. The scenario creates
 its own event and deletes it at the end, so it is replayable against a persistent database.
 
 ### Running the full stack
@@ -137,8 +149,8 @@ The Postgres URL is assembled from the `DB_*` parts by `database::pg_url::build_
 percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `SWAGGER_ENABLED` (`true`/`1`) serves Swagger UI and the OpenAPI document. `RATE_LIMIT_PER_SECOND` (default 10, `0` disables) and
 `RATE_LIMIT_BURST` (default 50) set the per-user quota of `/api` (MAIR-425, `endpoints/rate_limit.rs`): `actix-governor`
 keyed by the authenticated user id, mounted *inside* `JwtMiddleware` (the BFFs share a few pod IPs, so a per-IP
-limit would throttle all their users together), `429` + `Retry-After`. The k6 and ZAP stacks disable it. `JWT_SECRET` / `JWT_TIMEOUT` are consumed
-by `mairie360_api_lib`'s JWT layer. `LOG_FORMAT=json` switches the logs to JSON lines and the `OTEL_*` variables turn the trace export on (see Logs and observability). See `docker-compose.yml` `x-common-env` for working values.
+limit would throttle all their users together), `429` + `Retry-After`. The k6 and ZAP stacks disable it. `JWT_PUBLIC_KEY` / `JWT_TIMEOUT` are consumed
+by `mairie360_api_lib`'s JWT layer (MAIR-680). `LOG_FORMAT=json` switches the logs to JSON lines and the `OTEL_*` variables turn the trace export on (see Logs and observability). See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
 

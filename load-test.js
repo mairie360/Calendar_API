@@ -18,35 +18,30 @@
 // - `calendar_rush`: `GET /calendar` over a month as agents at the fixed arrival rate of the profile, failing if k6
 //   has to drop iterations (the API no longer keeps up).
 import http from 'k6/http';
-import crypto from 'k6/crypto';
-import encoding from 'k6/encoding';
 import { check, fail, sleep } from 'k6';
 import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3002').replace(/\/+$/, '');
 
-// The stack's JWT_SECRET, random per run (performance_test.sh, MAIR-428): no committed default.
-const JWT_SECRET = __ENV.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not set: run ./performance_test.sh, which generates it');
-}
-/** Token lifetime: the whole run, setup and teardown included. */
-const JWT_TTL_SECONDS = 2 * 60 * 60;
+// EdDSA tokens of every caller ({ "<user id>": "<jwt>" }), signed by performance_test.sh with the
+// run's key like Core signs them (test_secrets.sh, MAIR-428, MAIR-680): k6 cannot sign Ed25519
+// itself, and no token is committed.
+const TOKENS = JSON.parse(open(__ENV.JWT_TOKENS_FILE || '/tokens.json'));
 
-/** HS256 JWT for a user seeded by liquibase / init-test.sql, valid for the run. */
-function jwt(sub, role) {
-  const header = encoding.b64encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }), 'rawurl');
-  const payload = encoding.b64encode(JSON.stringify({ sub: String(sub), role, exp: Math.floor(Date.now() / 1000) + JWT_TTL_SECONDS }), 'rawurl');
-  return `${header}.${payload}.${crypto.hmac('sha256', JWT_SECRET, `${header}.${payload}`, 'base64rawurl')}`;
+/** EdDSA JWT of a user seeded by liquibase / init-test.sql / init-perf.sql, valid for the run. */
+function jwt(sub) {
+  const token = TOKENS[String(sub)];
+  if (!token) throw new Error(`No token for user ${sub}: sign it in performance_test.sh`);
+  return token;
 }
 
 // User 1 is the Admin seeded by liquibase (the `sub` ZAP uses too); users 2 (User) and
 // 3 (Responsable, sharing group 1000 with user 2) come from init-test.sql.
-const ADMIN = { Authorization: `Bearer ${jwt(1, 'admin')}` };
+const ADMIN = { Authorization: `Bearer ${jwt(1)}` };
 const AGENT_ID = 2;
-const AGENT = { Authorization: `Bearer ${jwt(AGENT_ID, 'user')}` };
+const AGENT = { Authorization: `Bearer ${jwt(AGENT_ID)}` };
 const RESPONSABLE_ID = 3;
-const RESPONSABLE = { Authorization: `Bearer ${jwt(RESPONSABLE_ID, 'responsable')}` };
+const RESPONSABLE = { Authorization: `Bearer ${jwt(RESPONSABLE_ID)}` };
 
 // p(95) latency budget of each family of operations, in ms (reference machine).
 const READ_BUDGET_MS = 200;
@@ -83,7 +78,7 @@ const agentTokens = {};
 function randomAgent() {
   const rank = randomInt(AGENTS.count);
   const id = AGENTS.first + rank;
-  if (!agentTokens[id]) agentTokens[id] = { Authorization: `Bearer ${jwt(id, 'user')}` };
+  if (!agentTokens[id]) agentTokens[id] = { Authorization: `Bearer ${jwt(id)}` };
   const eventsPerAgent = PERF_EVENTS.count / AGENTS.count;
   return { headers: agentTokens[id], eventId: PERF_EVENTS.first + rank + AGENTS.count * randomInt(eventsPerAgent) };
 }
