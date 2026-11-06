@@ -172,7 +172,7 @@ services:
       - backend
 
   gdpr-simulation:
-    image: node:24-bookworm-slim
+    image: node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
     user: "${GDPR_UID:-0}:${GDPR_GID:-0}"
     depends_on:
       calendar-ready:
