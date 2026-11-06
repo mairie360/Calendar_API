@@ -1,55 +1,68 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "dcb93d0cc938d75e9ab72859f7147c3785709703", "prod": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "prod_tag": "v1.2.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-11-04 18:25 UTC", "prod": "2026-10-21 09:11 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
+<!-- release-journal-state {"dev": "ef34dc5d4254ad11e11192a5c0cf8a6418c5ba53", "prod": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "prod_tag": "v1.2.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-11-06 03:12 UTC", "prod": "2026-10-21 09:11 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.2.0 | `dbc5e3f` | 2026-10-21 09:11 UTC |
 | staging | — | `dbc5e3f` | 2026-10-21 03:20 UTC |
-| dev | — | `dcb93d0` | 2026-11-04 18:25 UTC |
+| dev | — | `ef34dc5` | 2026-11-06 03:12 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.2.0)
 
-#### Changements de comportement
-- Le service ne lit plus `JWT_SECRET` : il attend `JWT_PUBLIC_KEY` (clé publique PEM de Core, `mairie360_api_lib` 4.3.0). Sans `JWT_PUBLIC_KEY`, tout jeton HS256 est refusé (401). Un déploiement doit fournir la clé publique avant de passer à cette version. (MAIR-680, [#214](https://github.com/mairie360/Calendar_API/pull/214))
-- Les journaux des requêtes HTTP n'affichent plus la query string ni le `Referer` : ils ne contiennent plus que l'adresse client, la méthode, le chemin sans query, le statut, la taille et la durée. (MAIR-290, [#153](https://github.com/mairie360/Calendar_API/pull/153))
-
-#### Technique
-- Image d'exécution distroless passée de `cc-debian12` à `cc-debian13`, builder et `development.Dockerfile` passés sur `rust:1.99-*-trixie`, test `mair_741_every_image_runs_on_debian_13`. (MAIR-741, [#208](https://github.com/mairie360/Calendar_API/pull/208))
-- Simulation RGPD ajoutée à la CI : `gdpr-simulation.yaml`, `gdpr-journey.yaml`, `docker-compose-gdpr-simulation.yml`, `gdpr_simulation_test.sh`, et ignore des fichiers de run. Aucun effet sur le service. (MAIR-497, [#216](https://github.com/mairie360/Calendar_API/pull/216))
-- Workflows CICD montés en v4.4.1, v4.4.2 puis v4.4.3 (promotions staging et prod), puis v5.2.2 pour activer les contrôles RGPD, avec `ANTHROPIC_WORKSPACE_ID` transmis à la promotion prod. (MAIR-612 [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196), [#199](https://github.com/mairie360/Calendar_API/pull/199) ; MAIR-771, [#212](https://github.com/mairie360/Calendar_API/pull/212))
-- Checklist RGPD sur les PR (`gdpr-pr.yml`) et test de garde `tests/mair_771_cicd_version.rs`. (MAIR-295, [#157](https://github.com/mairie360/Calendar_API/pull/157) ; MAIR-771, [#212](https://github.com/mairie360/Calendar_API/pull/212))
-- Matrice d'accès `access-matrix.yaml` et test de couverture de l'OpenAPI, sans changement de l'API. (MAIR-288, [#161](https://github.com/mairie360/Calendar_API/pull/161))
-- Images des stacks de test et de `docker-compose.yml` épinglées par digest (Renovate, [#210](https://github.com/mairie360/Calendar_API/pull/210)). Digests de `rust:1.99` mis à jour dans `development.Dockerfile` ([#197](https://github.com/mairie360/Calendar_API/pull/197), [#202](https://github.com/mairie360/Calendar_API/pull/202), [#203](https://github.com/mairie360/Calendar_API/pull/203), [#218](https://github.com/mairie360/Calendar_API/pull/218)).
-- Dépendances Rust : `tokio` 1.54.1 ([#200](https://github.com/mairie360/Calendar_API/pull/200)) ; `actix-web` et `log` selon la PR ([#204](https://github.com/mairie360/Calendar_API/pull/204), diff vide dans la source, non vérifié).
-- Exception `RUSTSEC-2026-0387` ajoutée à `.cargo/audit.toml`. (MAIR-290, [#153](https://github.com/mairie360/Calendar_API/pull/153))
+- chore(deps): pin node.js to 01d566e (#219) ([#219](https://github.com/mairie360/Calendar_API/pull/219))
+- feat: MAIR-497 GDPR - Usage simulation and AI review of logs and database before prod ([#216](https://github.com/mairie360/Calendar_API/pull/216))
+- chore(deps): update rust:1.99-trixie docker digest to 4c4c8ec (#218) ([#218](https://github.com/mairie360/Calendar_API/pull/218))
+- chore(deps): update rust dependencies (#204) ([#204](https://github.com/mairie360/Calendar_API/pull/204))
+- fix: MAIR-680 [Audit 23/10] Toutes les APIs et BFFs : remplacer le secret JWT HS256 partagé par 12 services (A1) ([#214](https://github.com/mairie360/Calendar_API/pull/214))
+- chore(deps): pin dependencies (#210) ([#210](https://github.com/mairie360/Calendar_API/pull/210))
+- ci: MAIR-771 APIs, BFFs, Database : monter CICD en v5.2.2 pour activer les contrôles RGPD (#212) ([#212](https://github.com/mairie360/Calendar_API/pull/212))
+- fix: MAIR-741 APIs : passer l'image d'exécution en distroless Debian 13 (CVE-2026-84782) (#208) ([#208](https://github.com/mairie360/Calendar_API/pull/208))
+- feat: MAIR-288 Définir la matrice d'accès des APIs et la vérifier depuis l'OpenAPI (#161) ([#161](https://github.com/mairie360/Calendar_API/pull/161))
+- fix: MAIR-290 Détecter les données personnelles dans les journaux avec un test du marqueur (#153) ([#153](https://github.com/mairie360/Calendar_API/pull/153))
+- ci: MAIR-295 Ajouter une checklist RGPD aux PR et des rappels d'échéances automatiques (#157) ([#157](https://github.com/mairie360/Calendar_API/pull/157))
+- chore(deps): update rust:1.99-bookworm docker digest to 48b7f43 (#203) ([#203](https://github.com/mairie360/Calendar_API/pull/203))
+- chore(deps): update rust:1.99-bookworm docker digest to edaa2a8 (#202) ([#202](https://github.com/mairie360/Calendar_API/pull/202))
+- chore(deps): update rust crate tokio to v1.54.1 (#200) ([#200](https://github.com/mairie360/Calendar_API/pull/200))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#199) ([#199](https://github.com/mairie360/Calendar_API/pull/199))
+- chore(deps): update rust:1.99-bookworm docker digest to 5c1a173 (#197) ([#197](https://github.com/mairie360/Calendar_API/pull/197))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#196) ([#196](https://github.com/mairie360/Calendar_API/pull/196))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#194) ([#194](https://github.com/mairie360/Calendar_API/pull/194))
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
-#### Changements de comportement
-- Le service ne lit plus `JWT_SECRET` : il attend `JWT_PUBLIC_KEY` (clé publique PEM de Core, `mairie360_api_lib` 4.3.0). Sans `JWT_PUBLIC_KEY`, tout jeton HS256 est refusé (401). Un déploiement doit fournir la clé publique avant de passer à cette version. (MAIR-680, [#214](https://github.com/mairie360/Calendar_API/pull/214))
-- Les journaux des requêtes HTTP n'affichent plus la query string ni le `Referer` : ils ne contiennent plus que l'adresse client, la méthode, le chemin sans query, le statut, la taille et la durée. (MAIR-290, [#153](https://github.com/mairie360/Calendar_API/pull/153))
-
-#### Technique
-- Image d'exécution distroless passée de `cc-debian12` à `cc-debian13`, builder et `development.Dockerfile` passés sur `rust:1.99-*-trixie`, test `mair_741_every_image_runs_on_debian_13`. (MAIR-741, [#208](https://github.com/mairie360/Calendar_API/pull/208))
-- Simulation RGPD ajoutée à la CI : `gdpr-simulation.yaml`, `gdpr-journey.yaml`, `docker-compose-gdpr-simulation.yml`, `gdpr_simulation_test.sh`, et ignore des fichiers de run. Aucun effet sur le service. (MAIR-497, [#216](https://github.com/mairie360/Calendar_API/pull/216))
-- Workflows CICD montés en v4.4.1, v4.4.2 puis v4.4.3 (promotions staging et prod), puis v5.2.2 pour activer les contrôles RGPD, avec `ANTHROPIC_WORKSPACE_ID` transmis à la promotion prod. (MAIR-612 [#194](https://github.com/mairie360/Calendar_API/pull/194), [#196](https://github.com/mairie360/Calendar_API/pull/196), [#199](https://github.com/mairie360/Calendar_API/pull/199) ; MAIR-771, [#212](https://github.com/mairie360/Calendar_API/pull/212))
-- Checklist RGPD sur les PR (`gdpr-pr.yml`) et test de garde `tests/mair_771_cicd_version.rs`. (MAIR-295, [#157](https://github.com/mairie360/Calendar_API/pull/157) ; MAIR-771, [#212](https://github.com/mairie360/Calendar_API/pull/212))
-- Matrice d'accès `access-matrix.yaml` et test de couverture de l'OpenAPI, sans changement de l'API. (MAIR-288, [#161](https://github.com/mairie360/Calendar_API/pull/161))
-- Images des stacks de test et de `docker-compose.yml` épinglées par digest (Renovate, [#210](https://github.com/mairie360/Calendar_API/pull/210)). Digests de `rust:1.99` mis à jour dans `development.Dockerfile` ([#197](https://github.com/mairie360/Calendar_API/pull/197), [#202](https://github.com/mairie360/Calendar_API/pull/202), [#203](https://github.com/mairie360/Calendar_API/pull/203), [#218](https://github.com/mairie360/Calendar_API/pull/218)).
-- Dépendances Rust : `tokio` 1.54.1 ([#200](https://github.com/mairie360/Calendar_API/pull/200)) ; `actix-web` et `log` selon la PR ([#204](https://github.com/mairie360/Calendar_API/pull/204), diff vide dans la source, non vérifié).
-- Exception `RUSTSEC-2026-0387` ajoutée à `.cargo/audit.toml`. (MAIR-290, [#153](https://github.com/mairie360/Calendar_API/pull/153))
+- chore(deps): pin node.js to 01d566e (#219) ([#219](https://github.com/mairie360/Calendar_API/pull/219))
+- feat: MAIR-497 GDPR - Usage simulation and AI review of logs and database before prod ([#216](https://github.com/mairie360/Calendar_API/pull/216))
+- chore(deps): update rust:1.99-trixie docker digest to 4c4c8ec (#218) ([#218](https://github.com/mairie360/Calendar_API/pull/218))
+- chore(deps): update rust dependencies (#204) ([#204](https://github.com/mairie360/Calendar_API/pull/204))
+- fix: MAIR-680 [Audit 23/10] Toutes les APIs et BFFs : remplacer le secret JWT HS256 partagé par 12 services (A1) ([#214](https://github.com/mairie360/Calendar_API/pull/214))
+- chore(deps): pin dependencies (#210) ([#210](https://github.com/mairie360/Calendar_API/pull/210))
+- ci: MAIR-771 APIs, BFFs, Database : monter CICD en v5.2.2 pour activer les contrôles RGPD (#212) ([#212](https://github.com/mairie360/Calendar_API/pull/212))
+- fix: MAIR-741 APIs : passer l'image d'exécution en distroless Debian 13 (CVE-2026-84782) (#208) ([#208](https://github.com/mairie360/Calendar_API/pull/208))
+- feat: MAIR-288 Définir la matrice d'accès des APIs et la vérifier depuis l'OpenAPI (#161) ([#161](https://github.com/mairie360/Calendar_API/pull/161))
+- fix: MAIR-290 Détecter les données personnelles dans les journaux avec un test du marqueur (#153) ([#153](https://github.com/mairie360/Calendar_API/pull/153))
+- ci: MAIR-295 Ajouter une checklist RGPD aux PR et des rappels d'échéances automatiques (#157) ([#157](https://github.com/mairie360/Calendar_API/pull/157))
+- chore(deps): update rust:1.99-bookworm docker digest to 48b7f43 (#203) ([#203](https://github.com/mairie360/Calendar_API/pull/203))
+- chore(deps): update rust:1.99-bookworm docker digest to edaa2a8 (#202) ([#202](https://github.com/mairie360/Calendar_API/pull/202))
+- chore(deps): update rust crate tokio to v1.54.1 (#200) ([#200](https://github.com/mairie360/Calendar_API/pull/200))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#199) ([#199](https://github.com/mairie360/Calendar_API/pull/199))
+- chore(deps): update rust:1.99-bookworm docker digest to 5c1a173 (#197) ([#197](https://github.com/mairie360/Calendar_API/pull/197))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#196) ([#196](https://github.com/mairie360/Calendar_API/pull/196))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#194) ([#194](https://github.com/mairie360/Calendar_API/pull/194))
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
 _Rien._
+
+> Résumé Claude indisponible pour ce passage : listes brutes des commits.
 
 ## Historique des passages
 
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-06 03:12 UTC | dev | — | `ef34dc5` | [run](https://github.com/mairie360/Calendar_API/actions/runs/42154149929) |
 | 2026-11-04 18:25 UTC | dev | — | `dcb93d0` | [run](https://github.com/mairie360/Calendar_API/actions/runs/41883185149) |
 | 2026-11-04 02:43 UTC | dev | — | `cdaf87d` | [run](https://github.com/mairie360/Calendar_API/actions/runs/41761798868) |
 | 2026-11-03 11:19 UTC | dev | — | `30217fa` | [run](https://github.com/mairie360/Calendar_API/actions/runs/41624171679) |
