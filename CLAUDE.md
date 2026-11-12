@@ -126,9 +126,34 @@ spec's path examples (event 21 with user 51 assigned) so ZAP reaches real rows.
 committed default (`http://localhost:3002`) stays usable from a host shell. There is no login route here and the
 Postman sandbox cannot sign EdDSA, so `integration_test.sh` signs the JWTs with the run's key (`test_secrets.sh`)
 and the compose file passes them with `--env-var`: `jwt_admin` (user 1), `jwt_agent` (user 2, from
-`init-test.sql`), `jwt_forged` (Core's `kid`, another key) and `jwt_expired`; the pre-request script only forges
+`init-test.sql`), `jwt_responsable` (user 3, the Responsable of `init-test.sql`), `jwt_forged` (Core's `kid`, another key) and `jwt_expired`; the pre-request script only forges
 `jwt_hs256`, an HS256 token that must be refused (MAIR-680). From a host shell, fill those variables yourself. The scenario creates
-its own event and deletes it at the end, so it is replayable against a persistent database.
+its own events and deletes them at the end, so it is replayable against a persistent database.
+
+Split of the tests (MAIR-262): `cargo test` (unit and handler tests) validates the code, newman validates that the
+running image works. The collection holds, for **every operation of the spec**, its success case and one case per
+documented `400` / `401` / `403` / `404` / `409`, chained in business journeys (event → participants → updates →
+approval of a plain user's event by the Responsable of their group → calendar → cleanup), each case checking the
+status and what the front relies on. The `429` / `500` cannot be produced on purpose on a healthy stack and stay in
+the handler tests. Three collection-level scripts, identical in every API collection, back it:
+
+- the collection pre-request loads `/api-docs/openapi.json` once (the stack sets `SWAGGER_ENABLED=true`), and the
+  collection test checks every answer against it: documented operation, documented status, content type, and the
+  JSON body against the response schema (`$ref`s inlined);
+- `Every secured operation refuses a missing JWT` replays every `jwt`-secured operation of the spec without a token
+  and expects a documented `401 text/plain`;
+- `OpenAPI coverage`, the last request, fails when an operation has no success case or a documented status above
+  was never answered, and when an entry of the collection variable `openapi_coverage_exceptions` (`"METHOD /path
+  STATUS": "reason"`, `2xx` for the success) is no longer needed. The only one is the `409` of `PATCH
+  validation`: the access check locks the event row in the decision's transaction, so a concurrent decision waits
+  and gets `403` (`tests/endpoints/validation.rs::a_decision_is_taken_once`).
+
+A new endpoint therefore fails the integration stack until the collection tests it.
+
+A path id that is not an integer answers `400 text/plain` `Invalid path: ids are integers.` (`endpoints::config`
+registers a `PathConfig`, MAIR-262; actix answered `404`), and every operation with a path id documents that `400`:
+`tests/endpoints/path_ids.rs` walks the contract. Plain-text answers without a content type get
+`text/plain; charset=utf-8` from `endpoints::headers::default_headers()` (with `nosniff`), wired in `main.rs`.
 
 ### Running the full stack
 

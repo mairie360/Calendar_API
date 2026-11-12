@@ -70,8 +70,8 @@ async fn main() -> std::io::Result<()> {
             // One span per request (MAIR-503), including those refused by `JwtMiddleware`; it
             // continues the `traceparent` of the BFF.
             .wrap(TracingLogger::default())
-            // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
-            .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
+            // nosniff, and text/plain on the plain-text answers (MAIR-262).
+            .wrap(calendar_api::endpoints::headers::default_headers())
             // 1. Swagger UI and the OpenAPI document, only when SWAGGER_ENABLED is set (MAIR-424).
             .configure(|cfg| {
                 if swagger_enabled {

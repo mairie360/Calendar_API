@@ -31,7 +31,9 @@ JWT_ADMIN="$ADMIN_JWT"
 JWT_AGENT="$(sign_jwt 2 user 3600)" || exit 1
 JWT_FORGED="$(sign_jwt 1 admin 3600 "$(openssl genpkey -algorithm ed25519 2>/dev/null)")" || exit 1
 JWT_EXPIRED="$(sign_jwt 1 admin -3600)" || exit 1
-export JWT_ADMIN JWT_AGENT JWT_FORGED JWT_EXPIRED
+# The Responsable of init-test.sql (user 3, shares group 1000 with user 2): the approval circuit (MAIR-262).
+JWT_RESPONSABLE="$(sign_jwt 3 responsable 3600)" || exit 1
+export JWT_ADMIN JWT_AGENT JWT_FORGED JWT_EXPIRED JWT_RESPONSABLE
 
 echo "==> [1/4] Starting the stack and the newman collection..."
 # Fresh database on every run (MAIR-474): a volume left by a previous run would hand the

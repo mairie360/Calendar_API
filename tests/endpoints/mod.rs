@@ -12,6 +12,7 @@ pub mod creation;
 pub mod input;
 pub mod mair_680_session_keys;
 pub mod members;
+pub mod path_ids;
 pub mod rate_limit;
 pub mod service;
 pub mod telemetry;
