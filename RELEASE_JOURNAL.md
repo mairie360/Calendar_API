@@ -1,16 +1,17 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "f46efcffb48b3becd1e6367bea4d0d618fac3aed", "prod": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "prod_tag": "v1.2.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-11-12 11:52 UTC", "prod": "2026-10-21 09:11 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
+<!-- release-journal-state {"dev": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "prod_tag": "v1.2.0", "staging": "dbc5e3f42b0e4c45c4a09f544955bd656afc879e", "updated": {"dev": "2026-11-12 12:58 UTC", "prod": "2026-10-21 09:11 UTC", "staging": "2026-10-21 03:20 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.2.0 | `dbc5e3f` | 2026-10-21 09:11 UTC |
 | staging | — | `dbc5e3f` | 2026-10-21 03:20 UTC |
-| dev | — | `f46efcf` | 2026-11-12 11:52 UTC |
+| dev | — | `89649f7` | 2026-11-12 12:58 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.2.0)
 
+- fix: MAIR-262 Integration tests - API functional tests, BFF business tests and regression tests (#230) ([#230](https://github.com/mairie360/Calendar_API/pull/230))
 - chore(deps): update gcr.io/distroless/cc-debian13:nonroot docker digest to cc66d22 (#223) ([#223](https://github.com/mairie360/Calendar_API/pull/223))
 - fix(deps): MAIR-740 APIs: fix the cargo audit RustSec alerts (actix-http, libsqlite3-sys) (#229) ([#229](https://github.com/mairie360/Calendar_API/pull/229))
 - chore(deps): update rust crate actix-web to v4.18.2 (#224) ([#224](https://github.com/mairie360/Calendar_API/pull/224))
@@ -36,6 +37,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- fix: MAIR-262 Integration tests - API functional tests, BFF business tests and regression tests (#230) ([#230](https://github.com/mairie360/Calendar_API/pull/230))
 - chore(deps): update gcr.io/distroless/cc-debian13:nonroot docker digest to cc66d22 (#223) ([#223](https://github.com/mairie360/Calendar_API/pull/223))
 - fix(deps): MAIR-740 APIs: fix the cargo audit RustSec alerts (actix-http, libsqlite3-sys) (#229) ([#229](https://github.com/mairie360/Calendar_API/pull/229))
 - chore(deps): update rust crate actix-web to v4.18.2 (#224) ([#224](https://github.com/mairie360/Calendar_API/pull/224))
@@ -70,6 +72,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-12 12:58 UTC | dev | — | `89649f7` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43220669726) |
 | 2026-11-12 11:52 UTC | dev | — | `f46efcf` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43211612978) |
 | 2026-11-06 03:12 UTC | dev | — | `ef34dc5` | [run](https://github.com/mairie360/Calendar_API/actions/runs/42154149929) |
 | 2026-11-04 18:25 UTC | dev | — | `dcb93d0` | [run](https://github.com/mairie360/Calendar_API/actions/runs/41883185149) |
