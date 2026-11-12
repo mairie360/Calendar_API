@@ -22,7 +22,7 @@ Required (the process panics when one is missing):
 
 | Variable | Role |
 | --- | --- |
-| `REDIS_URL` | Redis URL (cache and revocation list). Redis stays optional at runtime: the cache degrades to Postgres. |
+| `REDIS_URL` | Redis URL (cache and revocation list). The calendar cache falls back to Postgres when Redis is unreachable, but `/ready` then answers `503`. |
 | `DB_USER` / `DB_PASSWORD` | Postgres role of this API (`calendar_api`) and its password. |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` | Postgres address and database. |
 | `HOST` / `PORT` | Listen address and port (`3002` in the dev stack). |
@@ -51,7 +51,15 @@ Docker and Docker Compose are enough (pulling the `ghcr.io/mairie360/*` images n
 docker compose up --watch   # Postgres + Liquibase + seeder + Redis + API (hot reload, src/ synced) + nginx
 ```
 
-The API listens on `localhost:3002`. The dev stack signs nothing: to call `/api`, sign a token with the lib's test key (see `CLAUDE.md`, "Session tokens").
+The API listens on `localhost:3002`. The dev stack signs nothing, so `/api` calls need a session token that the
+stack's `JWT_PUBLIC_KEY` verifies. With OpenSSL 3 on the host:
+
+```bash
+source ./test_secrets.sh    # exports a fresh JWT_PUBLIC_KEY and ADMIN_JWT (user 1), defines sign_jwt
+docker compose up -d        # same shell: Compose uses the exported JWT_PUBLIC_KEY instead of its default
+curl -H "Authorization: Bearer $ADMIN_JWT" "http://localhost:3002/api/v1/calendar?start=2026-10-01T00:00:00Z&end=2026-10-31T23:59:59Z"
+sign_jwt 2 user 3600        # a token for another seeded user
+```
 
 Without Docker for the API itself, export the variables above (Postgres and Redis must be reachable) and run `cargo run`.
 
@@ -87,8 +95,12 @@ on `localhost:3002`:
 
 ```bash
 docker run --rm --network host -v "$PWD/tests/postman:/etc/newman:ro" postman/newman:6.1.3-alpine \
-  run collection.json --environment environment.json
+  run collection.json --environment environment.json \
+  --env-var jwt_admin="$ADMIN_JWT" --env-var jwt_agent="$(sign_jwt 2 user 3600)"
 ```
+
+The committed environment holds no token: sign them in the shell that started the stack (see "Run locally"). The
+requests using `jwt_forged` / `jwt_expired` need them too: `integration_test.sh` shows how it signs every one.
 
 ## `GET /api/v1/calendar`: aggregated read and cache (MAIR-524)
 
