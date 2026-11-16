@@ -121,9 +121,9 @@ mod tests {
 
     #[test]
     fn accepts_a_plain_event() {
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.description = Some("Ordre du jour :\n- budget".to_string());
-        input.location = Some("Salle du conseil".to_string());
+        input.location = Some("Council chamber".to_string());
         assert!(validate_event_input(&input).is_ok());
     }
 
@@ -147,10 +147,10 @@ mod tests {
     fn errors_name_the_faulty_field() {
         let message = |input: &EventInput| validate_event_input(input).unwrap_err().to_string();
         assert!(message(&event(" ")).starts_with("Invalid `name`"));
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.end = input.start;
         assert!(message(&input).starts_with("Invalid `events_end_time`"));
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.location = Some("a".repeat(256));
         assert!(message(&input).starts_with("Invalid `location`"));
     }
@@ -158,19 +158,19 @@ mod tests {
     #[test]
     fn rejects_dates_outside_the_calendar_window() {
         use chrono::TimeZone;
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.start = Utc.with_ymd_and_hms(1969, 12, 31, 23, 59, 59).unwrap();
         assert!(validate_event_input(&input)
             .unwrap_err()
             .to_string()
             .starts_with("Invalid `events_start_time`"));
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.end = Utc.with_ymd_and_hms(3000, 1, 1, 0, 0, 0).unwrap();
         assert!(validate_event_input(&input)
             .unwrap_err()
             .to_string()
             .starts_with("Invalid `events_end_time`"));
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.start = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
         input.end = Utc.with_ymd_and_hms(2999, 12, 31, 23, 59, 59).unwrap();
         assert!(validate_event_input(&input).is_ok());
@@ -178,10 +178,10 @@ mod tests {
 
     #[test]
     fn rejects_nul_in_optional_fields() {
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.service = Some("Secr\0".to_string());
         assert!(validate_event_input(&input).is_err());
-        let mut input = event("Conseil municipal");
+        let mut input = event("Town council");
         input.description = Some("a\u{0}b".to_string());
         assert!(validate_event_input(&input).is_err());
     }

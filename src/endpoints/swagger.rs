@@ -11,31 +11,30 @@ use utoipa::{Modify, OpenApi};
         title = "Calendar API — Mairie 360",
         version = "1.0.0",
         description = "\
-API d'agenda de la plateforme **Mairie 360** : événements, participants, récurrences et circuit de \
-validation. Les comptes, les rôles et les groupes vivent dans Core API.
+Calendar API of the **Mairie 360** platform: events, participants, recurrences and approval \
+workflow. Accounts, roles and groups live in Core API.
 
-## Deux façons de lire l'agenda
+## Two ways to read the calendar
 
-`GET /api/v1/calendar` renvoie la vue **calendrier** : les événements de l'appelant sur une \
-période donnée, récurrences dépliées comprises. `GET /api/v1/events/{event_id}/` renvoie le \
-**détail** d'un événement, avec ses participants, son statut de validation et les droits de \
-l'appelant sur lui.
+`GET /api/v1/calendar` returns the **calendar** view: the caller's events over a given \
+period, recurrences expanded. `GET /api/v1/events/{event_id}/` returns the **detail** of an \
+event, with its participants, its approval status and the caller's rights on it.
 
-## Droits d'accès
+## Access rights
 
-Un événement n'est visible que de ses **participants** : un événement auquel l'appelant n'est pas \
-assigné répond `403`, et non `404`, qui est réservé aux identifiants inexistants.
+An event is only visible to its **participants**: an event the caller is not assigned to \
+answers `403`, not `404`, which is kept for ids that do not exist.
 
-| Action | Qui peut la faire |
+| Action | Who can do it |
 | --- | --- |
-| Voir | tout participant assigné |
-| Modifier | participant qui en est le créateur, ou qui a le rôle Responsable, Maire ou Admin |
-| Supprimer | le créateur, et lui seul |
-| Gérer les participants | le créateur, ou quiconque peut modifier l'événement |
-| Valider | Responsable assigné, partageant un groupe avec le créateur, sur un événement en attente |
+| View | any assigned participant |
+| Edit | a participant who created it, or who has the Responsable, Maire or Admin role |
+| Delete | the creator, and only them |
+| Manage the participants | the creator, or anyone who can edit the event |
+| Approve | an assigned Responsable sharing a group with the creator, on a pending event |
 
-Le champ `permissions` de `GET /api/v1/events/{event_id}/` donne directement ces droits pour \
-l'appelant, ce qui évite de les redériver côté client.
+The `permissions` field of `GET /api/v1/events/{event_id}/` gives these rights for the \
+caller directly, so clients do not have to derive them.
 
 ## Error format
 
@@ -52,21 +51,21 @@ Statuses returned across the API, before the handler runs:
 | `500` | Database or Redis failure. |
 ",
         contact(
-            name = "Équipe Mairie 360",
+            name = "Mairie 360 team",
             url = "https://github.com/mairie360"
         ),
         license(
-            name = "Propriétaire",
+            name = "Proprietary",
             identifier = "LicenseRef-mairie360-proprietary"
         )
     ),
     servers(
-        (url = "http://localhost:3002", description = "Développement local (cargo run)"),
-        (url = "http://development.mairie360.fr", description = "Pile Docker de développement (nginx)")
+        (url = "http://localhost:3002", description = "Local development (cargo run)"),
+        (url = "http://development.mairie360.fr", description = "Development Docker stack (nginx)")
     ),
     tags(
-        (name = "Calendar", description = "Vue calendrier : les événements de l'appelant sur une période, récurrences dépliées."),
-        (name = "Events", description = "Événements : création, détail, modification, suppression, participants et validation."),
+        (name = "Calendar", description = "Calendar view: the caller's events over a period, recurrences expanded."),
+        (name = "Events", description = "Events: creation, detail, update, deletion, participants and approval."),
         (name = "Service", description = "Unauthenticated technical probes, used by Docker and Kubernetes: `/health` (liveness) and `/ready` (readiness).")
     ),
     nest(
@@ -78,9 +77,9 @@ Statuses returned across the API, before the handler runs:
 )]
 pub struct ApiDoc;
 
-/// Sans ce modifier, les opérations qui déclarent `security(("jwt" = []))` référencent un schéma
-/// absent du contrat : Swagger UI n'offre pas de bouton « Authorize » et les clients générés
-/// pointent dans le vide.
+/// Without this modifier, the operations declaring `security(("jwt" = []))` reference a scheme
+/// missing from the contract: Swagger UI shows no "Authorize" button and generated clients
+/// point to nothing.
 struct SecurityAddon;
 
 impl Modify for SecurityAddon {
@@ -92,7 +91,7 @@ impl Modify for SecurityAddon {
                 Http::builder()
                     .scheme(HttpAuthScheme::Bearer)
                     .bearer_format("JWT")
-                    .description(Some("JWT émis par Core API (`POST /api/v1/auth/login`)."))
+                    .description(Some("JWT issued by Core API (`POST /api/v1/auth/login`)."))
                     .build(),
             ),
         )

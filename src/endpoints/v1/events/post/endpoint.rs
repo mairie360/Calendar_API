@@ -50,14 +50,14 @@ use crate::endpoints::v1::events::validate_event_input;
         content = PostEventView,
         description = "Event definition. `visibility` defaults to `Public` and `category` to `other`.",
         example = json!({
-            "name": "Conseil municipal",
-            "description": "Ordre du jour envoyé une semaine avant",
+            "name": "Town council",
+            "description": "Agenda sent one week before",
             "events_start_time": "2026-10-05T18:00:00Z",
             "events_end_time": "2026-10-05T20:00:00Z",
             "visibility": "Public",
             "category": "meeting",
-            "service": "Secrétariat général",
-            "location": "Salle du conseil",
+            "service": "General secretariat",
+            "location": "Council chamber",
             "recurrence": { "frequency": "monthly", "interval": 1, "days_of_week": null, "ends_on": "2027-06-30" },
             "members": [3, 51]
         })

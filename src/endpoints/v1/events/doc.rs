@@ -22,8 +22,8 @@ use crate::endpoints::v1::events::id::validation::view::UpdateEventValidationVie
 use crate::endpoints::v1::events::post::endpoint::__path_create_event;
 use crate::endpoints::v1::events::post::view::{PostEventResultView, PostEventView};
 
-// Une opération par chemin : utoipa remplace (au lieu de fusionner) deux `nest` qui aboutissent au même
-// chemin, les opérations d'un même chemin sont donc listées dans un seul document.
+// One operation per path: utoipa replaces (instead of merging) two `nest` that lead to the same
+// path, so the operations of one path are listed in a single document.
 #[derive(OpenApi)]
 #[openapi(nest(
     (path = "/", api = RootDoc),

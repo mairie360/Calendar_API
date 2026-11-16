@@ -16,15 +16,15 @@ pub struct Member {
     pub validation_status: EventValidationStatus,
 }
 
-/// Droits de l'appelant sur l'événement.
+/// Rights of the caller on the event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct EventPermissionsView {
-    /// L'appelant peut modifier l'événement : il en est le créateur assigné, ou il a le rôle
-    /// Responsable, Maire ou Admin.
+    /// The caller can edit the event: they are its assigned creator, or have the Responsable,
+    /// Maire or Admin role.
     #[schema(example = true)]
     pub can_edit: bool,
-    /// L'appelant peut supprimer l'événement : il en est le créateur. Un Admin assigné peut
-    /// modifier sans pouvoir supprimer.
+    /// The caller can delete the event: they created it. An assigned Admin can edit it
+    /// without being able to delete it.
     #[schema(example = true)]
     pub can_delete: bool,
     /// The caller can approve or reject the event: assigned Responsable sharing a group with the
@@ -33,40 +33,40 @@ pub struct EventPermissionsView {
     pub can_validate: bool,
 }
 
-/// Détail d'un événement.
+/// Detail of an event.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetEventResultView {
-    /// Identifiant de l'événement.
+    /// Id of the event.
     #[schema(example = 21)]
     pub id: u64,
-    /// Intitulé de l'événement.
-    #[schema(example = "Conseil municipal")]
+    /// Title of the event.
+    #[schema(example = "Town council")]
     pub name: String,
-    /// Description libre, ou `null`.
-    #[schema(example = "Ordre du jour envoyé une semaine avant")]
+    /// Free description, or `null`.
+    #[schema(example = "Agenda sent one week before")]
     pub description: Option<String>,
-    /// Début de l'événement.
+    /// Start of the event.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T18:00:00Z")]
     pub events_start_time: DateTime<Utc>,
-    /// Fin de l'événement.
+    /// End of the event.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T20:00:00Z")]
     pub events_end_time: DateTime<Utc>,
-    /// Visibilité de l'événement.
+    /// Visibility of the event.
     pub visibility: EventVisibility,
-    /// Catégorie de l'événement.
+    /// Category of the event.
     pub category: EventCategory,
-    /// Service organisateur, ou `null`.
-    #[schema(example = "Secrétariat général")]
+    /// Organising department, or `null`.
+    #[schema(example = "General secretariat")]
     pub service: Option<String>,
-    /// Lieu, ou `null`.
-    #[schema(example = "Salle du conseil")]
+    /// Location, or `null`.
+    #[schema(example = "Council chamber")]
     pub location: Option<String>,
-    /// Règle de répétition, ou `null` pour un événement ponctuel.
+    /// Repetition rule, or `null` for a one-off event.
     pub recurrence: Option<EventRecurrence>,
-    /// Identifiant Core API du propriétaire, ou `null`.
+    /// Core API id of the owner, or `null`.
     #[schema(example = 42)]
     pub owner: Option<u64>,
-    /// Identifiant Core API du créateur : le seul à pouvoir supprimer l'événement.
+    /// Core API id of the creator: the only one who can delete the event.
     #[schema(example = 42)]
     pub created_by: Option<u64>,
     /// Assigned members, sorted by id.
@@ -74,6 +74,6 @@ pub struct GetEventResultView {
     /// Approval of the event: `pending` while a Responsable has not decided (events created by a
     /// User or Guest, or moved by their creator since), `approved` or `rejected` otherwise.
     pub approval_status: ApprovalStatus,
-    /// Droits de l'appelant sur cet événement, à consommer tels quels côté client.
+    /// Rights of the caller on this event, to be used as is by clients.
     pub permissions: EventPermissionsView,
 }
