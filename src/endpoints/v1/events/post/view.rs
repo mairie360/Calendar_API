@@ -9,10 +9,10 @@ use crate::database::event::model::{EventCategory, EventInput, EventRecurrence, 
 #[serde(deny_unknown_fields)]
 pub struct PostEventView {
     /// Event title. Not blank once trimmed, at most 150 characters, no control character.
-    #[schema(min_length = 1, max_length = 150, example = "Conseil municipal")]
+    #[schema(min_length = 1, max_length = 150, example = "Town council")]
     pub name: String,
-    /// Description libre, ou absente.
-    #[schema(max_length = 5000, example = "Ordre du jour envoyé une semaine avant")]
+    /// Free description, or absent.
+    #[schema(max_length = 5000, example = "Agenda sent one week before")]
     pub description: Option<String>,
     /// Start of the event, between `1970-01-01T00:00:00Z` and `2999-12-31T23:59:59Z`.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T18:00:00Z")]
@@ -20,15 +20,15 @@ pub struct PostEventView {
     /// End of the event, **strictly** after the start and at most `2999-12-31T23:59:59Z`.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T20:00:00Z")]
     pub events_end_time: DateTime<Utc>,
-    /// `Public` par défaut.
+    /// `Public` by default.
     pub visibility: Option<EventVisibility>,
-    /// `other` par défaut.
+    /// `other` by default.
     pub category: Option<EventCategory>,
     /// Organising service, at most 128 characters, no control character.
-    #[schema(max_length = 128, example = "Secrétariat général")]
+    #[schema(max_length = 128, example = "General secretariat")]
     pub service: Option<String>,
-    /// Lieu de l'événement.
-    #[schema(max_length = 255, example = "Salle du conseil")]
+    /// Location of the event.
+    #[schema(max_length = 255, example = "Council chamber")]
     pub location: Option<String>,
     /// Repetition rule, absent for a one-off event. Must be consistent with the start date,
     /// otherwise `400`.
@@ -67,7 +67,7 @@ impl From<PostEventView> for EventInput {
     }
 }
 
-/// Événement créé.
+/// Event created.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct PostEventResultView {
     /// Id of the created event. The caller is its creator but not yet a member: assign yourself

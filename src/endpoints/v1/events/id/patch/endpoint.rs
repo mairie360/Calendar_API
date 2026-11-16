@@ -38,7 +38,7 @@ use crate::endpoints::v1::events::validate_event_input;
         example = json!({
             "events_start_time": "2026-10-12T18:00:00Z",
             "events_end_time": "2026-10-12T20:00:00Z",
-            "location": "Salle des mariages",
+            "location": "Wedding hall",
             "recurrence": null
         })
     ),

@@ -1,11 +1,11 @@
-//! Types métier partagés par les vues de requête et les endpoints des événements.
+//! Domain types shared by the query views and the endpoints of the events.
 
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use mairie360_api_lib::database::db_interface::QueryParam;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Catégorie d'un événement : `meeting` (réunion), `activity` (activité), `ceremony` (cérémonie) ou `other` (autre, par défaut).
+/// Category of an event: `meeting`, `activity`, `ceremony` or `other` (default).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum EventCategory {
@@ -54,7 +54,7 @@ impl EventVisibility {
     }
 }
 
-/// Unité de répétition d'un événement : `daily`, `weekly` ou `monthly`.
+/// Repetition unit of an event: `daily`, `weekly` or `monthly`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RecurrenceFrequency {
@@ -75,18 +75,18 @@ impl RecurrenceFrequency {
 
 pub const MAX_RECURRENCE_INTERVAL: u32 = 365;
 
-/// Règle de répétition d'un événement, stockée dans `recurrence_rules`. An unknown field is a
+/// Repetition rule of an event, stored in `recurrence_rules`. An unknown field is a
 /// `400`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EventRecurrence {
-    /// Unité de répétition, que `interval` multiplie.
+    /// Repetition unit, multiplied by `interval`.
     pub frequency: RecurrenceFrequency,
-    /// Répétition tous les `interval` jours, semaines ou mois (1 à 365).
+    /// Repeats every `interval` days, weeks or months (1 to 365).
     #[schema(minimum = 1, maximum = 365, example = 1)]
     pub interval: u32,
-    /// Jours d'une répétition hebdomadaire : 0 = dimanche … 6 = samedi. `null` hors
-    /// répétition hebdomadaire.
+    /// Days of a weekly repetition: 0 = Sunday … 6 = Saturday. `null` for any other
+    /// frequency.
     #[schema(example = json!([1, 4]))]
     pub days_of_week: Option<Vec<u8>>,
     /// Last day (inclusive) of the repetition, not before the start date and at most
@@ -147,7 +147,7 @@ impl EventRecurrence {
     }
 }
 
-/// Données complètes d'un événement, telles qu'écrites en base à la création ou à la modification.
+/// Full data of an event, as written to the database on creation or update.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventInput {
     pub name: String,
@@ -171,7 +171,7 @@ impl EventInput {
             || self.location != other.location
     }
 
-    /// Paramètres `$2` à `$14` communs aux vues de création et de modification.
+    /// Parameters `$2` to `$14`, shared by the create and update views.
     pub fn query_params(&self) -> Vec<QueryParam> {
         let recurrence = self.recurrence.as_ref();
         vec![
@@ -208,8 +208,8 @@ impl EventInput {
     }
 }
 
-/// Colonnes de `recurrence_rules` dérivées des paramètres d'`EventInput` (`$4` début, `$5` fin, `$6` visibilité,
-/// `$11` fréquence, `$12` intervalle, `$13` jours, `$14` dernier jour inclus → fin exclusive le lendemain à minuit UTC).
+/// Columns of `recurrence_rules` derived from the parameters of `EventInput` (`$4` start, `$5` end, `$6` visibility,
+/// `$11` frequency, `$12` interval, `$13` days, `$14` last day included → exclusive end the next day at midnight UTC).
 #[macro_export]
 macro_rules! recurrence_rule_values_sql {
     () => {
@@ -221,7 +221,7 @@ macro_rules! recurrence_rule_values_sql {
     };
 }
 
-/// Règle de répétition d'un événement `e` joint à `recurrence_rules rr`, en JSON (`null` sans règle).
+/// Repetition rule of an event `e` joined to `recurrence_rules rr`, as JSON (`null` without a rule).
 #[macro_export]
 macro_rules! recurrence_json_sql {
     () => {

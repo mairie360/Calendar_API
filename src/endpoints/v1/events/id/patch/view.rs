@@ -20,12 +20,12 @@ where
 pub struct PatchEventView {
     /// New title. Absent to leave it unchanged. Not blank, at most 150 characters, no control
     /// character.
-    #[schema(min_length = 1, max_length = 150, example = "Conseil municipal")]
+    #[schema(min_length = 1, max_length = 150, example = "Town council")]
     pub name: Option<String>,
     /// New description, at most 5000 characters. Absent to leave it unchanged;
     /// `null` clears it.
     #[serde(default, deserialize_with = "deserialize_present")]
-    #[schema(value_type = Option<String>, nullable, max_length = 5000, example = "Ordre du jour envoyé une semaine avant")]
+    #[schema(value_type = Option<String>, nullable, max_length = 5000, example = "Agenda sent one week before")]
     pub description: Option<Option<String>>,
     /// New start, between `1970-01-01T00:00:00Z` and `2999-12-31T23:59:59Z`. Absent to leave it
     /// unchanged. `event_start_time` is accepted as a legacy alias.
@@ -44,12 +44,12 @@ pub struct PatchEventView {
     /// New organising service, at most 128 characters, no control character.
     /// Absent to leave it unchanged; `null` clears it.
     #[serde(default, deserialize_with = "deserialize_present")]
-    #[schema(value_type = Option<String>, nullable, max_length = 128, example = "Secrétariat général")]
+    #[schema(value_type = Option<String>, nullable, max_length = 128, example = "General secretariat")]
     pub service: Option<Option<String>>,
     /// New location, at most 255 characters, no control character. Absent to
     /// leave it unchanged; `null` clears it.
     #[serde(default, deserialize_with = "deserialize_present")]
-    #[schema(value_type = Option<String>, nullable, max_length = 255, example = "Salle du conseil")]
+    #[schema(value_type = Option<String>, nullable, max_length = 255, example = "Council chamber")]
     pub location: Option<Option<String>>,
     /// New recurrence rule. Absent to leave it unchanged; `null` removes the recurrence. Must
     /// stay consistent with the start date, otherwise `400`.

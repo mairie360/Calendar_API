@@ -55,19 +55,19 @@ impl GetCalendarParams {
     }
 }
 
-/// Événement du calendrier, sur la période demandée.
+/// Calendar event, over the requested period.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct EventView {
-    /// Identifiant de l'événement, à réutiliser dans `/api/v1/events/{event_id}/`.
+    /// Id of the event, to reuse in `/api/v1/events/{event_id}/`.
     #[schema(example = 21)]
     pub id: u64,
-    /// Intitulé de l'événement.
-    #[schema(example = "Conseil municipal")]
+    /// Title of the event.
+    #[schema(example = "Town council")]
     pub name: String,
-    /// Début de l'événement.
+    /// Start of the event.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T18:00:00Z")]
     pub start: DateTime<Utc>,
-    /// Fin de l'événement, toujours strictement postérieure au début.
+    /// End of the event, always strictly after the start.
     #[schema(value_type = String, format = DateTime, example = "2026-10-05T20:00:00Z")]
     pub end: DateTime<Utc>,
     /// True when the caller is assigned to the event. `false` for an event they only own, or a
@@ -77,16 +77,16 @@ pub struct EventView {
     /// `Public` events are listed in every user's calendar, `Private` ones only for their owner
     /// and members.
     pub visibility: EventVisibility,
-    /// Catégorie de l'événement.
+    /// Category of the event.
     pub category: EventCategory,
-    /// Service organisateur, ou `null`.
-    #[schema(example = "Secrétariat général")]
+    /// Organising department, or `null`.
+    #[schema(example = "General secretariat")]
     pub service: Option<String>,
-    /// Lieu, ou `null`.
-    #[schema(example = "Salle du conseil")]
+    /// Location, or `null`.
+    #[schema(example = "Council chamber")]
     pub location: Option<String>,
-    /// Règle de répétition, ou `null` pour un événement ponctuel. Un événement récurrent
-    /// apparaît dès que sa règle chevauche la période demandée.
+    /// Repetition rule, or `null` for a one-off event. A recurring event shows up as soon
+    /// as its rule overlaps the requested period.
     pub recurrence: Option<EventRecurrence>,
     /// Assigned members sorted by id, each carrying the event's approval status: the same list,
     /// with the same shape, as `members` of `GET /api/v1/events/{event_id}/`, so the calendar
@@ -126,7 +126,7 @@ impl From<Event> for EventView {
     }
 }
 
-/// Événements du calendrier sur la période demandée.
+/// Calendar events over the requested period.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct GetCalendarResultView {
     /// Public events and the caller's events over the period, without pagination.
