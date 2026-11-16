@@ -26,7 +26,7 @@ url = "2.5"
 # Captures what actix's `Logger` writes in the `request_log` unit test (MAIR-290).
 log = "0.4"
 # Forges the tokens the refusal sweep sends (same version and features as mairie360_api_lib).
-jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto"] }
+jsonwebtoken = { version = "12.0.0", default-features = false, features = ["rust_crypto"] }
 # Feeds the in-memory span exporter of `tests/endpoints/telemetry.rs`.
 tracing-subscriber = "0.3.23"
 # Reads access-matrix.yaml in tests/endpoints/access_matrix.rs (MAIR-288).
