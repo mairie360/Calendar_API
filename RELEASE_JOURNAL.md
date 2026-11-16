@@ -1,21 +1,23 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "a90182ea037c748cf5399794edadae714bcf2e3f", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-16 16:39 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
+<!-- release-journal-state {"dev": "2fc2ea597d6f0c6c56ce3ba9c1543f832ebb08ac", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-16 16:42 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.3.0 | `89649f7` | 2026-11-12 23:53 UTC |
 | staging | — | `89649f7` | 2026-11-12 18:51 UTC |
-| dev | — | `a90182e` | 2026-11-16 16:39 UTC |
+| dev | — | `2fc2ea5` | 2026-11-16 16:42 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.3.0)
 
+- fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#237) ([#237](https://github.com/mairie360/Calendar_API/pull/237))
 - docs: MAIR-245 Rewrite the APIs' README and API.md (#227) ([#227](https://github.com/mairie360/Calendar_API/pull/227))
 - chore: MAIR-243 Align the test Database version on the 3.4.0 release (#234) ([#234](https://github.com/mairie360/Calendar_API/pull/234))
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#237) ([#237](https://github.com/mairie360/Calendar_API/pull/237))
 - docs: MAIR-245 Rewrite the APIs' README and API.md (#227) ([#227](https://github.com/mairie360/Calendar_API/pull/227))
 - chore: MAIR-243 Align the test Database version on the 3.4.0 release (#234) ([#234](https://github.com/mairie360/Calendar_API/pull/234))
 
@@ -30,6 +32,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-16 16:42 UTC | dev | — | `2fc2ea5` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43908285695) |
 | 2026-11-16 16:39 UTC | dev | — | `a90182e` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43905364158) |
 | 2026-11-12 23:53 UTC | prod | v1.3.0 | `89649f7` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43330545485) |
 | 2026-11-12 18:51 UTC | staging | — | `89649f7` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43282738519) |
