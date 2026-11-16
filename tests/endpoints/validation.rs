@@ -1,6 +1,5 @@
 use actix_web::test::TestRequest;
 use serde_json::json;
-use serial_test::serial;
 
 use super::{bearer, TestContext};
 use crate::common::{add_member, create_group, create_user};
@@ -26,7 +25,6 @@ fn decide(event: u64, caller: u64, status: &str) -> TestRequest {
 }
 
 #[tokio::test]
-#[serial]
 async fn the_creator_cannot_approve_their_own_event() {
     let ctx = TestContext::new().await;
     let (event, creator, _) = pending_event(&ctx).await;
@@ -36,7 +34,6 @@ async fn the_creator_cannot_approve_their_own_event() {
 }
 
 #[tokio::test]
-#[serial]
 async fn only_an_assigned_responsable_of_the_creator_group_decides() {
     let ctx = TestContext::new().await;
     let (event, creator, _) = pending_event(&ctx).await;
@@ -53,7 +50,6 @@ async fn only_an_assigned_responsable_of_the_creator_group_decides() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_decision_is_taken_once() {
     let ctx = TestContext::new().await;
     let (event, _, responsable) = pending_event(&ctx).await;
@@ -64,7 +60,6 @@ async fn a_decision_is_taken_once() {
 }
 
 #[tokio::test]
-#[serial]
 async fn an_event_that_needs_no_approval_cannot_be_decided() {
     let ctx = TestContext::new().await;
     let mayor = create_user(&ctx.db, "Mayor", Some("Maire")).await;

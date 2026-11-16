@@ -3,10 +3,8 @@ use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
 use calendar_api::database::event::add_member::view::AddUserToEventQueryView;
 use calendar_api::database::event::model::{EventRecurrence, RecurrenceFrequency};
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_member_sees_event_without_owning_it() {
     let db = api_db().await;
     let start = Utc::now();
@@ -42,7 +40,6 @@ async fn test_member_sees_event_without_owning_it() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_recurring_event_is_listed_while_its_rule_overlaps_the_window() {
     let db = api_db().await;
     let start = Utc.with_ymd_and_hms(2025, 1, 6, 9, 0, 0).unwrap();

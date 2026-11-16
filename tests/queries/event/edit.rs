@@ -6,7 +6,6 @@ use calendar_api::database::event::get::view::{GetEventQueryResultView, GetEvent
 use calendar_api::database::event::model::{EventCategory, EventRecurrence, RecurrenceFrequency};
 use chrono::{Duration, TimeZone, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database};
-use serial_test::serial;
 
 async fn read(db: &Database, id: u64) -> GetEventQueryResultView {
     db.fetch_one(&GetEventQueryView::new(id)).await.unwrap()
@@ -28,7 +27,6 @@ fn test_edit_view_params() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_edit_event_updates_fields_and_recurrence_lifecycle() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
@@ -89,7 +87,6 @@ async fn test_edit_event_updates_fields_and_recurrence_lifecycle() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_orphan_cleanup_keeps_attached_rules() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
@@ -112,7 +109,6 @@ async fn test_orphan_cleanup_keeps_attached_rules() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_edit_unknown_event() {
     let db = api_db().await;
     let start = Utc::now();

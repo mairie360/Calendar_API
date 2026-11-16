@@ -1,13 +1,11 @@
 use actix_web::test::TestRequest;
 use serde_json::json;
-use serial_test::serial;
 
 use super::{bearer, TestContext};
 use crate::common::{add_member, archive_user, create_group, create_user};
 use crate::{init_app, status_of};
 
 #[tokio::test]
-#[serial]
 async fn only_the_creator_or_an_editor_manages_members() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -42,7 +40,6 @@ async fn only_the_creator_or_an_editor_manages_members() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_user_is_only_assigned_inside_the_caller_scope() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -70,7 +67,6 @@ async fn a_user_is_only_assigned_inside_the_caller_scope() {
 }
 
 #[tokio::test]
-#[serial]
 async fn removing_a_user_who_is_not_assigned_is_not_found() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -89,7 +85,6 @@ async fn removing_a_user_who_is_not_assigned_is_not_found() {
 }
 
 #[tokio::test]
-#[serial]
 async fn members_of_a_private_event_are_hidden_from_outsiders() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;

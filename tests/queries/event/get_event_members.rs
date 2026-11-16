@@ -5,10 +5,8 @@ use calendar_api::database::event::{
     get_event_members::view::{GetEventMemberQueryView, Member},
 };
 use chrono::Utc;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_get_event_members_success() {
     let db = api_db().await;
 
@@ -32,7 +30,6 @@ async fn test_get_event_members_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_members_event_not_found() {
     let db = api_db().await;
 

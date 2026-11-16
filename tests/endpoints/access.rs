@@ -1,13 +1,11 @@
 use actix_web::test::TestRequest;
 use serde_json::json;
-use serial_test::serial;
 
 use super::{bearer, new_event_body, TestContext};
 use crate::common::{add_member, archive_user, create_user};
 use crate::{init_app, status_of};
 
 #[tokio::test]
-#[serial]
 async fn requests_without_a_valid_token_are_refused() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -28,7 +26,6 @@ async fn requests_without_a_valid_token_are_refused() {
 }
 
 #[tokio::test]
-#[serial]
 async fn an_archived_account_is_refused() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -48,7 +45,6 @@ async fn an_archived_account_is_refused() {
 }
 
 #[tokio::test]
-#[serial]
 async fn an_unknown_event_is_not_found() {
     let ctx = TestContext::new().await;
     let user = create_user(&ctx.db, "Reader", Some("Admin")).await;
@@ -67,7 +63,6 @@ async fn an_unknown_event_is_not_found() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_malformed_event_id_is_refused() {
     let ctx = TestContext::new().await;
     let user = create_user(&ctx.db, "Reader", Some("User")).await;
@@ -84,7 +79,6 @@ async fn a_malformed_event_id_is_refused() {
 }
 
 #[tokio::test]
-#[serial]
 async fn another_user_cannot_read_edit_nor_delete_a_private_event() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -118,7 +112,6 @@ async fn another_user_cannot_read_edit_nor_delete_a_private_event() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_public_event_is_readable_but_not_editable_by_everyone() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -156,7 +149,6 @@ async fn a_public_event_is_readable_but_not_editable_by_everyone() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_member_who_is_not_the_creator_cannot_edit_nor_delete() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -195,7 +187,6 @@ async fn a_member_who_is_not_the_creator_cannot_edit_nor_delete() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_manager_member_edits_but_only_the_creator_deletes() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -244,7 +235,6 @@ async fn a_manager_member_edits_but_only_the_creator_deletes() {
 }
 
 #[tokio::test]
-#[serial]
 async fn write_bodies_are_validated() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -287,7 +277,6 @@ async fn write_bodies_are_validated() {
 }
 
 #[tokio::test]
-#[serial]
 async fn an_id_beyond_int4_is_not_an_alias_of_a_smaller_one() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -320,7 +309,6 @@ async fn an_id_beyond_int4_is_not_an_alias_of_a_smaller_one() {
 }
 
 #[tokio::test]
-#[serial]
 async fn angle_brackets_are_stored_and_returned_as_is() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("Maire")).await;

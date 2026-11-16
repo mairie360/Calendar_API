@@ -8,7 +8,6 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use mairie360_api_lib::jwt_manager::Claims;
 use serde_json::Value;
-use serial_test::serial;
 
 use super::{bearer, new_event_body, now, TestContext};
 use crate::common::create_user;
@@ -35,7 +34,6 @@ fn calendar_uri() -> String {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_680_runs_without_jwt_secret() {
     let _ctx = TestContext::new().await;
     assert!(std::env::var_os("JWT_SECRET").is_none());
@@ -44,7 +42,6 @@ async fn mair_680_runs_without_jwt_secret() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_680_eddsa_token_signed_with_core_key_is_accepted() {
     let ctx = TestContext::new().await;
     let user = create_user(&ctx.db, "Eddsa", Some("User")).await;
@@ -57,7 +54,6 @@ async fn mair_680_eddsa_token_signed_with_core_key_is_accepted() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_680_hs256_token_is_refused_without_jwt_secret() {
     let ctx = TestContext::new().await;
     let admin = create_user(&ctx.db, "Hs256", Some("Admin")).await;
@@ -81,7 +77,6 @@ async fn mair_680_hs256_token_is_refused_without_jwt_secret() {
 /// Business journey with Core's tokens: a user creates an event, reads it back and deletes it;
 /// the same user's HS256 token is refused on that event at every step.
 #[tokio::test]
-#[serial]
 async fn mair_680_user_manages_an_event_with_core_tokens_only() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Journey", Some("User")).await;

@@ -3,10 +3,8 @@ use calendar_api::database::calendar::get::view::{Event, GetCalendarQueryView};
 use calendar_api::database::event::create::view::CreateEventQueryView;
 use calendar_api::database::event::model::EventVisibility;
 use chrono::{Duration, Utc};
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_get_calendar_hides_private_events_of_others() {
     let db = api_db().await;
 
@@ -31,7 +29,6 @@ async fn test_get_calendar_hides_private_events_of_others() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_calendar_empty_window() {
     let db = api_db().await;
 

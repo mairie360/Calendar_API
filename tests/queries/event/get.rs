@@ -5,10 +5,8 @@ use calendar_api::database::event::{
 };
 use chrono::Utc;
 use mairie360_api_lib::database::error::DbError;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_get_event_success() {
     let db = api_db().await;
 
@@ -40,7 +38,6 @@ async fn test_get_event_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_event_not_found() {
     let db = api_db().await;
 

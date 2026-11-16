@@ -3,7 +3,6 @@
 
 use actix_web::test::{call_service, read_body_json, TestRequest};
 use serde_json::{json, Value};
-use serial_test::serial;
 
 use super::{bearer, new_event_body, TestContext};
 use crate::common::{create_group, create_user, created_event_count, member_ids};
@@ -23,7 +22,6 @@ fn create(caller: u64, body: Value) -> TestRequest {
 }
 
 #[tokio::test]
-#[serial]
 async fn an_event_is_created_with_its_members_in_one_call() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -46,7 +44,6 @@ async fn an_event_is_created_with_its_members_in_one_call() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_body_without_members_still_creates_a_memberless_event() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -63,7 +60,6 @@ async fn a_body_without_members_still_creates_a_memberless_event() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_562_a_refused_member_leaves_no_event_behind() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -84,7 +80,6 @@ async fn mair_562_a_refused_member_leaves_no_event_behind() {
 }
 
 #[tokio::test]
-#[serial]
 async fn invalid_member_lists_are_refused_before_any_write() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("Admin")).await;

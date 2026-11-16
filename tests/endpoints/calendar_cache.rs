@@ -5,7 +5,6 @@
 use actix_web::test::{call_and_read_body_json, TestRequest};
 use chrono::{Duration, SecondsFormat, Utc};
 use serde_json::{json, Value};
-use serial_test::serial;
 
 use super::{bearer, new_event_body, TestContext};
 use crate::common::{add_member, create_group, create_user, raw_sql};
@@ -56,7 +55,6 @@ fn member_ids(calendar: &Value, event: u64) -> Vec<u64> {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_524_a_second_read_is_served_from_the_cache() {
     let ctx = TestContext::with_redis().await;
     let mayor = create_user(&ctx.db, "Mayor", Some("Maire")).await;
@@ -96,7 +94,6 @@ async fn mair_524_a_second_read_is_served_from_the_cache() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_524_every_event_write_invalidates_the_calendar() {
     let ctx = TestContext::with_redis().await;
     let mayor = create_user(&ctx.db, "Mayor", Some("Maire")).await;
@@ -192,7 +189,6 @@ async fn mair_524_every_event_write_invalidates_the_calendar() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_524_an_approval_invalidates_every_callers_calendar() {
     let ctx = TestContext::with_redis().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -236,7 +232,6 @@ async fn mair_524_an_approval_invalidates_every_callers_calendar() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_524_two_callers_never_share_a_cached_page() {
     let ctx = TestContext::with_redis().await;
     let alice = create_user(&ctx.db, "Alice", Some("User")).await;

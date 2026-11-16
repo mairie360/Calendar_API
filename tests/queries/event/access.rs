@@ -17,7 +17,6 @@ use calendar_api::database::event::validation::view::{
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::database::error::DbError;
-use serial_test::serial;
 
 async fn access(db: &Database, event_id: u64, user_id: u64) -> EventAccess {
     let mut access: EventAccess = db
@@ -59,7 +58,6 @@ async fn approval_circuit(db: &Database) -> (u64, u64, u64, u64) {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_event_requiring_approval_is_validated_by_a_responsable_of_the_creator_group() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
@@ -134,7 +132,6 @@ async fn test_event_requiring_approval_is_validated_by_a_responsable_of_the_crea
 }
 
 #[tokio::test]
-#[serial]
 async fn test_member_changes_never_overwrite_the_approval() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
@@ -173,7 +170,6 @@ async fn test_member_changes_never_overwrite_the_approval() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_edit_resets_the_approval_only_when_asked() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
@@ -221,7 +217,6 @@ async fn test_edit_resets_the_approval_only_when_asked() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_event_created_by_a_responsable_never_requires_approval() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
@@ -240,7 +235,6 @@ async fn test_event_created_by_a_responsable_never_requires_approval() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_visibility_and_creator_read_access() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
@@ -268,7 +262,6 @@ async fn test_visibility_and_creator_read_access() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_unknown_event_access() {
     let db = api_db().await;
 
@@ -278,7 +271,6 @@ async fn test_unknown_event_access() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_assignment_scope_follows_roles_and_groups() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;
