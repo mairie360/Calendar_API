@@ -45,7 +45,7 @@ Optional:
 
 ## Run locally
 
-Docker and Docker Compose are enough (pulling the `ghcr.io/mairie360/*` images needs registry access):
+Docker and Docker Compose run the stack (pulling the `ghcr.io/mairie360/*` images needs registry access):
 
 ```bash
 docker compose up --watch   # Postgres + Liquibase + seeder + Redis + API (hot reload, src/ synced) + nginx
