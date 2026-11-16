@@ -214,8 +214,9 @@ The schema is the Database **v1.2.0** changeset, shipped in the `1.1.0` release 
 repetition of an event in `recurrence_rules` (`events.recurrence_id`, `is_exception = false`; `end_date` is the
 day after `ends_on` at 00:00 UTC, NULL when the rule never ends). `src/database/event/model.rs` holds the shared
 types (`EventInput`, `EventRecurrence`…) and the SQL fragments reused by several views. Integration tests use the
-database images pinned by `TEST_DB_VERSION` in `.cargo/config.toml` (`3.4.0`, overriding the lib default; an
-exported `TEST_DB_VERSION` still wins); the compose files pin the same images.
+database images of `TEST_DB_VERSION` in `.cargo/config.toml` (`dev`, overriding the lib default; an exported
+`TEST_DB_VERSION` still wins); the compose files run them on the moving tag of the stage under test, `${UPSTREAM_TAG:-dev}`
+(MAIR-998: dev for PRs and main, staging / latest in the promotion gates).
 
 The approval lives on the event (Database `releases/v1.8.0`, MAIR-392): `events.approval_status`
 (`event_validation_status`), `approval_decided_by`, `approval_decided_at`. An event is created `pending` when its
