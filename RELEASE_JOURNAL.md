@@ -1,16 +1,17 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "0049b2c85806780f01cdba9f1c9794a0836edb7f", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-16 17:42 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
+<!-- release-journal-state {"dev": "30ce646523c77e83553148edac0777eea30723f3", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-16 23:10 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.3.0 | `89649f7` | 2026-11-12 23:53 UTC |
 | staging | — | `89649f7` | 2026-11-12 18:51 UTC |
-| dev | — | `0049b2c` | 2026-11-16 17:42 UTC |
+| dev | — | `30ce646` | 2026-11-16 23:10 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.3.0)
 
+- chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#225) ([#225](https://github.com/mairie360/Calendar_API/pull/225))
 - test: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#242) ([#242](https://github.com/mairie360/Calendar_API/pull/242))
 - chore(deps): MAIR-243 Bump quinn-udp to the patched 0.5.16 (RUSTSEC-2026-0538) (#239) ([#239](https://github.com/mairie360/Calendar_API/pull/239))
 - fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#237) ([#237](https://github.com/mairie360/Calendar_API/pull/237))
@@ -19,6 +20,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#225) ([#225](https://github.com/mairie360/Calendar_API/pull/225))
 - test: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#242) ([#242](https://github.com/mairie360/Calendar_API/pull/242))
 - chore(deps): MAIR-243 Bump quinn-udp to the patched 0.5.16 (RUSTSEC-2026-0538) (#239) ([#239](https://github.com/mairie360/Calendar_API/pull/239))
 - fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#237) ([#237](https://github.com/mairie360/Calendar_API/pull/237))
@@ -36,6 +38,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-16 23:10 UTC | dev | — | `30ce646` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43974645500) |
 | 2026-11-16 17:42 UTC | dev | — | `0049b2c` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43919075281) |
 | 2026-11-16 16:50 UTC | dev | — | `fa75131` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43909704551) |
 | 2026-11-16 16:42 UTC | dev | — | `2fc2ea5` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43908285695) |
