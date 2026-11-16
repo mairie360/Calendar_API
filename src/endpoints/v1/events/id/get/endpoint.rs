@@ -101,7 +101,7 @@ pub async fn load_event(
             description = "A path segment is not an integer.",
             body = String,
             content_type = "text/plain",
-            example = json!("Path deserialize error: can not parse `abc` to a u64")
+            example = json!("Invalid path: ids are integers.")
         ),
         (
             status = 401,
