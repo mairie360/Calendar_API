@@ -4,7 +4,6 @@ use calendar_api::database::event::create::view::CreateEventQueryView;
 use calendar_api::database::event::model::EventVisibility;
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::ApiRequestDto;
-use serial_test::serial;
 
 #[test]
 fn test_query_view_getters() {
@@ -34,7 +33,6 @@ fn test_event_getters_and_display() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_calendar_returns_owned_event() {
     let db = api_db().await;
 
@@ -54,7 +52,6 @@ async fn test_get_calendar_returns_owned_event() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_calendar_excludes_out_of_window_event() {
     let db = api_db().await;
 
@@ -71,7 +68,6 @@ async fn test_get_calendar_excludes_out_of_window_event() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_calendar_lists_public_events_of_others_only() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;

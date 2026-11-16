@@ -16,7 +16,6 @@ use calendar_api::database::event::validation::view::SetEventApprovalQueryView;
 use chrono::{Duration, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde_json::Value;
-use serial_test::serial;
 
 use crate::common::{add_member, api_db, create_event, create_user, event_input, fixtures_db};
 
@@ -56,7 +55,6 @@ fn scans(node: &Value, out: &mut Vec<(String, String)>) {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_524_the_calendar_query_reads_events_and_members_through_indexes() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;

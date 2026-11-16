@@ -4,7 +4,6 @@ use calendar_api::endpoints::ready::ready;
 use mairie360_api_lib::state::AppState;
 use mairie360_api_lib::test_setup::db_setup::start_postgres_container;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
-use serial_test::serial;
 
 use super::{bearer, TestContext};
 use crate::common::{calendar_db_url, create_user};
@@ -25,7 +24,6 @@ async fn call_ready(state: AppState) -> (u16, String) {
 }
 
 #[tokio::test]
-#[serial]
 async fn ready_checks_postgres_and_redis() {
     let pg_url = calendar_db_url().await;
     let (_redis, redis) = start_redis_container().await;
@@ -41,7 +39,6 @@ async fn ready_checks_postgres_and_redis() {
 }
 
 #[tokio::test]
-#[serial]
 async fn ready_reports_postgres_down() {
     // `AppState::new` panics without PostgreSQL (lib 3.0.0), so the state is built on a dedicated
     // database that is stopped afterwards (the shared one is used by the other tests).
@@ -64,7 +61,6 @@ async fn ready_reports_postgres_down() {
 }
 
 #[tokio::test]
-#[serial]
 async fn the_probes_are_not_mounted_under_api() {
     let ctx = TestContext::new().await;
     let user = create_user(&ctx.db, "Reader", Some("User")).await;

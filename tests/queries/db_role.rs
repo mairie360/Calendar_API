@@ -3,7 +3,6 @@
 //! in staging would pass here.
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
-use serial_test::serial;
 
 use crate::common::{api_db, CALENDAR_DB_ROLE};
 
@@ -32,7 +31,6 @@ fn sql(sql: &'static str) -> RawSql {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_556_the_code_under_test_runs_as_calendar_api() {
     let db = api_db().await;
 
@@ -52,7 +50,6 @@ async fn mair_556_the_code_under_test_runs_as_calendar_api() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_556_calendar_api_is_held_to_its_grants() {
     // Calendar never reads the project domain: the grants refuse it, as in staging.
     let db = api_db().await;

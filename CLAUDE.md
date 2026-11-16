@@ -51,8 +51,19 @@ Tests:
   bypassed), so fixtures can be written behind the API's back. `tests/queries/calendar/plan.rs` asserts the calendar
   query reads `events` and `event_members` through indexes (`EXPLAIN` with `enable_seqscan = off`).
 - `cargo test test_create_event_by_user_success` — a single test by name.
-- DB query tests are `#[tokio::test] #[serial]` and call `common::api_db()` (a process-wide `OnceCell`
+- DB query tests are `#[tokio::test]` and call `common::api_db()` (a process-wide `OnceCell`
   container shared across all tests, see below).
+
+Tests run in parallel (MAIR-1002): there is no `#[serial]`. The tests share the seeded database of
+`get_shared_db()` and keep to rows of their own (unique markers). A test that depends on, or changes, what the
+others see (a count of rows of a table, a sequence reset, anything that reads every row) takes a database of its
+own with `mairie360_api_lib::test_setup::isolated::isolated_db()`: a copy of the seeded template (about 0.2 s),
+dropped when the guard is dropped, whose URLs are `db.url()` (superuser, fixtures) and `db.url_as("<role>")`.
+`isolated_redis()` gives a Redis client with its own key prefix on one container shared by the process. Only a
+test that sets a process environment variable keeps `#[serial(<group>)]`. The dependencies are compiled with
+`opt-level = 3` (`[profile.dev.package."*"]`): the code of the crate stays in debug, which is what the coverage
+measures, while argon2 and the TLS stack no longer dominate the run.
+
 - **The code under test runs as `calendar_api`, never as the superuser (MAIR-556).** `get_shared_db()` hands back
   the **superuser** URL, used by the fixtures only (`common::fixtures_db()`, `TestContext::db`). Everything that
   runs Calendar's code connects as the `calendar_api` role, like in staging: `common::api_db()` (query views,
@@ -280,7 +291,7 @@ Endpoints return the shared `endpoints/error.rs::ApiError` (400/403/404/409/500,
 
 Tests (`tests/queries/`) hit a real Postgres testcontainer: `common::api_db().await` (connected as `calendar_api`),
 then the same `fetch_*`/`execute` methods (on `Database` these take `&view`).
-Use `#[tokio::test]` + `#[serial]` (`serial_test`); `tests/common` creates events, users (with roles) and groups,
+Use `#[tokio::test]` (no `#[serial]`, see the parallel tests paragraph above); `tests/common` creates events, users (with roles) and groups,
 through the superuser client of `common::fixtures_db()`.
 `tests/model_test.rs` covers input validation and partial updates without a database.
 

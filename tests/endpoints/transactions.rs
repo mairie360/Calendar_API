@@ -1,7 +1,6 @@
 use actix_web::test::TestRequest;
 use calendar_api::database::event::get::view::{GetEventQueryResultView, GetEventQueryView};
 use serde_json::json;
-use serial_test::serial;
 
 use super::{bearer, TestContext};
 use crate::common::{add_member, create_user, recurrence_rule_count};
@@ -17,7 +16,6 @@ async fn recurrence_id(ctx: &TestContext, event: u64) -> Option<i32> {
 }
 
 #[tokio::test]
-#[serial]
 async fn dropping_the_recurrence_deletes_the_rule_with_the_update() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("Maire")).await;
@@ -48,7 +46,6 @@ async fn dropping_the_recurrence_deletes_the_rule_with_the_update() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_refused_write_changes_nothing() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;

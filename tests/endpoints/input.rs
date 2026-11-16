@@ -3,7 +3,6 @@
 
 use actix_web::test::{call_service, TestRequest};
 use serde_json::{json, Value};
-use serial_test::serial;
 
 use super::{bearer, new_event_body, TestContext};
 use crate::common::{add_member, create_user};
@@ -135,7 +134,6 @@ macro_rules! refusal {
 }
 
 #[tokio::test]
-#[serial]
 async fn invalid_bodies_are_400_naming_the_field() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("Maire")).await;
@@ -168,7 +166,6 @@ async fn invalid_bodies_are_400_naming_the_field() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_missing_field_names_the_body() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("Maire")).await;
@@ -186,7 +183,6 @@ async fn a_missing_field_names_the_body() {
 }
 
 #[tokio::test]
-#[serial]
 async fn events_at_the_bounds_are_stored_and_readable() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("Maire")).await;
@@ -248,7 +244,6 @@ async fn events_at_the_bounds_are_stored_and_readable() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_calendar_period_outside_the_window_is_400() {
     let ctx = TestContext::new().await;
     let user = create_user(&ctx.db, "Reader", Some("User")).await;
@@ -281,7 +276,6 @@ async fn a_calendar_period_outside_the_window_is_400() {
 }
 
 #[tokio::test]
-#[serial]
 async fn member_and_validation_bodies_name_the_field() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("Maire")).await;

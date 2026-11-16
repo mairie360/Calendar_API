@@ -1,7 +1,6 @@
 use actix_web::test::{call_and_read_body_json, TestRequest};
 use chrono::{Duration, SecondsFormat, Utc};
 use serde_json::Value;
-use serial_test::serial;
 
 use super::{bearer, TestContext};
 use crate::common::{add_member, create_user, raw_sql};
@@ -18,7 +17,6 @@ fn period(start_in_days: i64, length_days: i64) -> String {
 }
 
 #[tokio::test]
-#[serial]
 async fn an_invalid_period_is_refused() {
     let ctx = TestContext::new().await;
     let user = create_user(&ctx.db, "Reader", Some("User")).await;
@@ -42,7 +40,6 @@ async fn an_invalid_period_is_refused() {
 }
 
 #[tokio::test]
-#[serial]
 async fn private_events_of_others_are_not_listed() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;
@@ -111,7 +108,6 @@ fn listed_event(calendar: &Value, event: u64) -> Option<Value> {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_524_calendar_lists_members_like_the_event_detail() {
     let ctx = TestContext::new().await;
     // A plain User creates a pending event, a Maire a validated one.
@@ -168,7 +164,6 @@ async fn mair_524_calendar_lists_members_like_the_event_detail() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_524_calendar_does_not_leak_members_the_detail_route_refuses() {
     let ctx = TestContext::new().await;
     let creator = create_user(&ctx.db, "Creator", Some("User")).await;

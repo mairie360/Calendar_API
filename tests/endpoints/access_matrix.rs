@@ -9,7 +9,6 @@ use actix_web::test::TestRequest;
 use calendar_api::endpoints::swagger::ApiDoc;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use serial_test::serial;
 use utoipa::OpenApi;
 
 use super::{bearer, TestContext};
@@ -176,7 +175,6 @@ fn request(spec: &Value, name: &str, f: &Fixtures, joiner: u64) -> TestRequest {
 }
 
 #[actix_web::test]
-#[serial]
 async fn every_role_and_relation_gets_what_the_matrix_says() {
     let ctx = TestContext::new().await;
     let app = init_app!(ctx);

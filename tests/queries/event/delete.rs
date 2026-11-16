@@ -7,10 +7,8 @@ use calendar_api::database::event::{
 };
 use chrono::Utc;
 use mairie360_api_lib::database::error::DbError;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_delete_event_success() {
     let db = api_db().await;
 
@@ -32,7 +30,6 @@ async fn test_delete_event_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_event_not_found() {
     let db = api_db().await;
 
@@ -46,7 +43,6 @@ async fn test_delete_event_not_found() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_event_removes_its_recurrence_rule_in_the_same_statement() {
     let db = api_db().await;
     let fixtures = fixtures_db().await;

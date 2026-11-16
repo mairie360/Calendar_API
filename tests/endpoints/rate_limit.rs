@@ -4,13 +4,11 @@ use actix_web::{web, App};
 use calendar_api::endpoints::rate_limit::{
     RateLimit, DEFAULT_RATE_LIMIT_BURST, DEFAULT_RATE_LIMIT_PER_SECOND,
 };
-use serial_test::serial;
 
 use super::{bearer, TestContext};
 use crate::common::create_user;
 
 #[tokio::test]
-#[serial]
 async fn each_user_has_their_own_quota() {
     let ctx = TestContext::new().await;
     let first = create_user(&ctx.db, "First", Some("User")).await;
@@ -52,7 +50,6 @@ async fn each_user_has_their_own_quota() {
 /// `main.rs`. A user gets the whole burst, then `429` with a numeric `Retry-After` of at least one
 /// second, while another user is still served.
 #[tokio::test]
-#[serial]
 async fn the_production_budget_refuses_a_user_past_its_burst() {
     std::env::remove_var(calendar_api::endpoints::rate_limit::RATE_LIMIT_PER_SECOND_ENV);
     std::env::remove_var(calendar_api::endpoints::rate_limit::RATE_LIMIT_BURST_ENV);

@@ -9,7 +9,6 @@ use actix_web::http::Method;
 use actix_web::test::{try_call_service, TestRequest};
 use calendar_api::endpoints::swagger::ApiDoc;
 use serde_json::json;
-use serial_test::serial;
 use utoipa::OpenApi;
 
 use super::{bearer, TestContext};
@@ -70,7 +69,6 @@ fn operations_with_a_path_id() -> Vec<(Method, String, Vec<String>)> {
 }
 
 #[actix_web::test]
-#[serial]
 async fn a_path_id_that_is_not_an_integer_answers_the_documented_400() {
     let ctx = TestContext::new().await;
     let app = init_app!(ctx);

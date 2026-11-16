@@ -6,7 +6,6 @@ use calendar_api::database::event::model::{
 };
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use mairie360_api_lib::database::db_interface::ApiRequestDto;
-use serial_test::serial;
 
 #[test]
 fn test_create_view_params_and_display() {
@@ -24,7 +23,6 @@ fn test_create_view_params_and_display() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_event_stores_metadata_without_recurrence() {
     let db = api_db().await;
     let start = Utc.with_ymd_and_hms(2026, 10, 5, 9, 0, 0).unwrap();
@@ -49,7 +47,6 @@ async fn test_create_event_stores_metadata_without_recurrence() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_event_with_weekly_recurrence() {
     let db = api_db().await;
     let start = Utc.with_ymd_and_hms(2026, 9, 7, 8, 30, 0).unwrap();
@@ -69,7 +66,6 @@ async fn test_create_event_with_weekly_recurrence() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_event_rejects_end_before_start() {
     let db = api_db().await;
     let start = Utc::now();
