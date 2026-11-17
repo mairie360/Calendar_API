@@ -1,16 +1,17 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "ff6f17da72d1b1d388f98a0eaa3c8ff1ef85c50e", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-17 14:47 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
+<!-- release-journal-state {"dev": "fdceeb6e97524d92675891088c830c0e5b4979b5", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-17 17:07 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.3.0 | `89649f7` | 2026-11-12 23:53 UTC |
 | staging | — | `89649f7` | 2026-11-12 18:51 UTC |
-| dev | — | `ff6f17d` | 2026-11-17 14:47 UTC |
+| dev | — | `fdceeb6` | 2026-11-17 17:07 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.3.0)
 
+- test: MAIR-534 Add the missing business negative cases of the APIs ([#251](https://github.com/mairie360/Calendar_API/pull/251))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#246) ([#246](https://github.com/mairie360/Calendar_API/pull/246))
 - chore(deps): pin actions/checkout action to 3d3c42e (#249) ([#249](https://github.com/mairie360/Calendar_API/pull/249))
 - ci: MAIR-1008 Nightly rehearsal of the promotion gates (#244) ([#244](https://github.com/mairie360/Calendar_API/pull/244))
@@ -25,6 +26,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- test: MAIR-534 Add the missing business negative cases of the APIs ([#251](https://github.com/mairie360/Calendar_API/pull/251))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#246) ([#246](https://github.com/mairie360/Calendar_API/pull/246))
 - chore(deps): pin actions/checkout action to 3d3c42e (#249) ([#249](https://github.com/mairie360/Calendar_API/pull/249))
 - ci: MAIR-1008 Nightly rehearsal of the promotion gates (#244) ([#244](https://github.com/mairie360/Calendar_API/pull/244))
@@ -48,6 +50,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-17 17:07 UTC | dev | — | `fdceeb6` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44131744382) |
 | 2026-11-17 14:47 UTC | dev | — | `ff6f17d` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44104070671) |
 | 2026-11-17 11:47 UTC | dev | — | `f5e8c7c` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44075420740) |
 | 2026-11-17 01:29 UTC | dev | — | `f572f65` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43994217357) |
