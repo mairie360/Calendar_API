@@ -1,16 +1,18 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "f572f65bf2106dfe0752dde283cf193284247fbd", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-17 01:29 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
+<!-- release-journal-state {"dev": "f5e8c7ce95a061118c8812ece339d35d9d6a2ad0", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-17 11:47 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.3.0 | `89649f7` | 2026-11-12 23:53 UTC |
 | staging | — | `89649f7` | 2026-11-12 18:51 UTC |
-| dev | — | `f572f65` | 2026-11-17 01:29 UTC |
+| dev | — | `f5e8c7c` | 2026-11-17 11:47 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.3.0)
 
+- chore(deps): pin actions/checkout action to 3d3c42e (#249) ([#249](https://github.com/mairie360/Calendar_API/pull/249))
+- ci: MAIR-1008 Nightly rehearsal of the promotion gates (#244) ([#244](https://github.com/mairie360/Calendar_API/pull/244))
 - test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#248](https://github.com/mairie360/Calendar_API/pull/248))
 - test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#247](https://github.com/mairie360/Calendar_API/pull/247))
 - chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#225) ([#225](https://github.com/mairie360/Calendar_API/pull/225))
@@ -22,6 +24,8 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore(deps): pin actions/checkout action to 3d3c42e (#249) ([#249](https://github.com/mairie360/Calendar_API/pull/249))
+- ci: MAIR-1008 Nightly rehearsal of the promotion gates (#244) ([#244](https://github.com/mairie360/Calendar_API/pull/244))
 - test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#248](https://github.com/mairie360/Calendar_API/pull/248))
 - test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#247](https://github.com/mairie360/Calendar_API/pull/247))
 - chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#225) ([#225](https://github.com/mairie360/Calendar_API/pull/225))
@@ -42,6 +46,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-17 11:47 UTC | dev | — | `f5e8c7c` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44075420740) |
 | 2026-11-17 01:29 UTC | dev | — | `f572f65` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43994217357) |
 | 2026-11-17 00:10 UTC | dev | — | `c382a1c` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43981548862) |
 | 2026-11-16 23:10 UTC | dev | — | `30ce646` | [run](https://github.com/mairie360/Calendar_API/actions/runs/43974645500) |
