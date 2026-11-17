@@ -112,3 +112,31 @@ async fn members_of_a_private_event_are_hidden_from_outsiders() {
     .await;
     assert_eq!(members["members"][0]["id"], json!(member));
 }
+
+#[tokio::test]
+async fn assigning_or_removing_a_member_of_an_unknown_event_is_not_found() {
+    let ctx = TestContext::new().await;
+    let user = create_user(&ctx.db, "User", Some("Admin")).await;
+    let app = init_app!(ctx);
+    let unknown = 2_147_483_000_u64;
+
+    assert_eq!(
+        status_of!(
+            app,
+            TestRequest::post()
+                .uri(&format!("/api/v1/events/{unknown}/members/"))
+                .insert_header(bearer(user))
+                .set_json(json!({ "user_id": user }))
+        ),
+        404
+    );
+    assert_eq!(
+        status_of!(
+            app,
+            TestRequest::delete()
+                .uri(&format!("/api/v1/events/{unknown}/members/{user}/"))
+                .insert_header(bearer(user))
+        ),
+        404
+    );
+}
