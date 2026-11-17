@@ -14,10 +14,11 @@ use calendar_api::database::event::edit::view::{
 use calendar_api::database::event::remove_member::view::RemoveUserFromEventQueryView;
 use calendar_api::database::event::validation::view::SetEventApprovalQueryView;
 use chrono::{Duration, Utc};
-use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, Database, QueryParam};
+use mairie360_api_lib::test_setup::isolated::isolated_db;
 use serde_json::Value;
 
-use crate::common::{add_member, api_db, create_event, create_user, event_input, fixtures_db};
+use crate::common::{add_member, create_event, create_user, event_input, CALENDAR_DB_ROLE};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct RawSql {
@@ -56,8 +57,11 @@ fn scans(node: &Value, out: &mut Vec<(String, String)>) {
 
 #[tokio::test]
 async fn mair_524_the_calendar_query_reads_events_and_members_through_indexes() {
-    let db = api_db().await;
-    let fixtures = fixtures_db().await;
+    // Its own database (MAIR-1002): the plan depends on the statistics of the whole table, which
+    // the tests running in parallel change.
+    let isolated = isolated_db().await;
+    let db = Database::new(&isolated.url_as(CALENDAR_DB_ROLE)).await;
+    let fixtures = Database::new(&isolated.url()).await;
     let user = create_user(&fixtures, "Planner", Some("User")).await;
     let start = Utc::now();
     let event = create_event(
