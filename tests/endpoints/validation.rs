@@ -89,5 +89,8 @@ async fn deciding_an_unknown_event_is_not_found() {
     let (_, _, responsable) = pending_event(&ctx).await;
     let app = init_app!(ctx);
 
-    assert_eq!(status_of!(app, decide(2_147_483_000, responsable, "approved")), 404);
+    assert_eq!(
+        status_of!(app, decide(2_147_483_000, responsable, "approved")),
+        404
+    );
 }
