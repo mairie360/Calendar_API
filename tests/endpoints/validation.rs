@@ -71,3 +71,26 @@ async fn an_event_that_needs_no_approval_cannot_be_decided() {
 
     assert_eq!(status_of!(app, decide(event, responsable, "approved")), 403);
 }
+
+#[tokio::test]
+async fn an_assigned_responsable_approves_a_pending_event() {
+    let ctx = TestContext::new().await;
+    let (event, _, responsable) = pending_event(&ctx).await;
+    let app = init_app!(ctx);
+
+    assert_eq!(status_of!(app, decide(event, responsable, "approved")), 204);
+    // The decision is final: an approval cannot be reverted (see `a_decision_is_taken_once`).
+    assert_eq!(status_of!(app, decide(event, responsable, "rejected")), 403);
+}
+
+#[tokio::test]
+async fn deciding_an_unknown_event_is_not_found() {
+    let ctx = TestContext::new().await;
+    let (_, _, responsable) = pending_event(&ctx).await;
+    let app = init_app!(ctx);
+
+    assert_eq!(
+        status_of!(app, decide(2_147_483_000, responsable, "approved")),
+        404
+    );
+}
