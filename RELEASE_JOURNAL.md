@@ -1,16 +1,17 @@
 # Journal des releases — Calendar_API
 
-<!-- release-journal-state {"dev": "fdceeb6e97524d92675891088c830c0e5b4979b5", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-17 17:07 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
+<!-- release-journal-state {"dev": "a43857002bff8a724b361481af24105d07d42dda", "prod": "89649f76be341a512b0f9874df70c7fd5b054a82", "prod_tag": "v1.3.0", "staging": "89649f76be341a512b0f9874df70c7fd5b054a82", "updated": {"dev": "2026-11-18 14:34 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 18:51 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v1.3.0 | `89649f7` | 2026-11-12 23:53 UTC |
 | staging | — | `89649f7` | 2026-11-12 18:51 UTC |
-| dev | — | `fdceeb6` | 2026-11-17 17:07 UTC |
+| dev | — | `a438570` | 2026-11-18 14:34 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v1.3.0)
 
+- chore: MAIR-1083 Set the Codecov target to 60 % on the code repositories ([#253](https://github.com/mairie360/Calendar_API/pull/253))
 - test: MAIR-534 Add the missing business negative cases of the APIs ([#251](https://github.com/mairie360/Calendar_API/pull/251))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#246) ([#246](https://github.com/mairie360/Calendar_API/pull/246))
 - chore(deps): pin actions/checkout action to 3d3c42e (#249) ([#249](https://github.com/mairie360/Calendar_API/pull/249))
@@ -26,6 +27,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore: MAIR-1083 Set the Codecov target to 60 % on the code repositories ([#253](https://github.com/mairie360/Calendar_API/pull/253))
 - test: MAIR-534 Add the missing business negative cases of the APIs ([#251](https://github.com/mairie360/Calendar_API/pull/251))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#246) ([#246](https://github.com/mairie360/Calendar_API/pull/246))
 - chore(deps): pin actions/checkout action to 3d3c42e (#249) ([#249](https://github.com/mairie360/Calendar_API/pull/249))
@@ -50,6 +52,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-18 14:34 UTC | dev | — | `a438570` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44323109673) |
 | 2026-11-17 17:07 UTC | dev | — | `fdceeb6` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44131744382) |
 | 2026-11-17 14:47 UTC | dev | — | `ff6f17d` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44104070671) |
 | 2026-11-17 11:47 UTC | dev | — | `f5e8c7c` | [run](https://github.com/mairie360/Calendar_API/actions/runs/44075420740) |
