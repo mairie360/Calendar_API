@@ -55,12 +55,13 @@ async fn each_user_has_their_own_quota() {
     assert_eq!(call_service(&app, read(second)).await.status(), 200);
 }
 
-/// The production budget: `RateLimiter::from_env()` without overrides, mounted like `main.rs`. A user gets the whole burst, then `429` with a numeric `Retry-After` of at least one
+/// The production budget (the lib's defaults), mounted like `main.rs`. A user gets the whole burst, then `429` with a numeric `Retry-After` of at least one
 /// second, while another user is still served.
 #[tokio::test]
 async fn the_production_budget_refuses_a_user_past_its_burst() {
-    // Reads the environment only: no test of this binary sets `RATE_LIMIT_*`, and mutating the
-    // process environment here would race with the tests that set `JWT_*`.
+    // Built from the lib's defaults, not `from_env()`: an inherited `RATE_LIMIT_*` must not change
+    // the budget under test, and the process environment is never mutated here (it would race
+    // with the tests that set `JWT_*`). The lib tests `from_env()` itself.
     let ctx = TestContext::new().await;
     let greedy = create_user(&ctx.db, "Greedy", Some("User")).await;
     let other = create_user(&ctx.db, "Other", Some("User")).await;
@@ -68,7 +69,12 @@ async fn the_production_budget_refuses_a_user_past_its_burst() {
     let app = init_service(
         App::new()
             .app_data(ctx.state.clone())
-            .app_data(RateLimiter::from_env())
+            .app_data(RateLimiter::new(RateLimitConfig {
+                per_second: NonZeroU32::new(u32::try_from(DEFAULT_RATE_LIMIT_PER_SECOND).unwrap())
+                    .unwrap(),
+                burst: NonZeroU32::new(DEFAULT_RATE_LIMIT_BURST).unwrap(),
+                trust_forwarded: false,
+            }))
             .service(
                 web::scope("/api")
                     .wrap(from_fn(rate_limit_middleware))
