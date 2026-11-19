@@ -43,8 +43,8 @@ Tests:
   `ApiDoc` declaring `jwt` (`401` without a token, with another scheme, garbage, an HS256 token whatever its secret, an
   EdDSA token signed with another key under Core's `kid` or without/with another `aud`, an expired token,
   `alg: none`, a swapped payload or an asymmetric algorithm; `404` for an unknown or archived account), and
-  `rate_limit.rs` checks the production quota of `RateLimit::from_env()` (`429` past the burst, `Retry-After` of
-  at least 1 s).
+  `rate_limit.rs` checks the production quota of the lib's `RateLimiter::from_env()` (`429` past the burst, `Retry-After` of
+  at least 1 s) and that `0` disables it.
 - `tests/endpoints/calendar_cache.rs` checks the read cache of `GET /calendar` on a real Redis container
   (`TestContext::with_redis`): a second read is served from the cache, each write endpoint invalidates it, two
   callers never share a page. Every other handler test uses `TestContext::new`, whose Redis is unreachable (cache
@@ -182,10 +182,8 @@ does not apply here; add the reason with any new entry.
 `main.rs` reads these via `get_critical_env_var` (the process **panics** if any is missing):
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `HOST`, `PORT`.
 The Postgres URL is assembled from the `DB_*` parts by `database::pg_url::build_pg_url`, which
-percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `SWAGGER_ENABLED` (`true`/`1`) serves Swagger UI and the OpenAPI document. `RATE_LIMIT_PER_SECOND` (default 10, `0` disables) and
-`RATE_LIMIT_BURST` (default 50) set the per-user quota of `/api` (MAIR-425, `endpoints/rate_limit.rs`): `actix-governor`
-keyed by the authenticated user id, mounted *inside* `JwtMiddleware` (the BFFs share a few pod IPs, so a per-IP
-limit would throttle all their users together), `429` + `Retry-After`. The k6 and ZAP stacks disable it. `JWT_PUBLIC_KEY` / `JWT_TIMEOUT` are consumed
+percent-encodes user, password and database name, so `DB_PASSWORD` may contain any character. `SWAGGER_ENABLED` (`true`/`1`) serves Swagger UI and the OpenAPI document. `RATE_LIMIT_PER_SECOND` (default 20, `0` disables) and
+`RATE_LIMIT_BURST` (default 50) set the per-user quota of `/api`, enforced by the lib's `rate_limit_middleware` (`mairie360_api_lib::security`), mounted *inside* `JwtMiddleware` (the BFFs share a few pod IPs, so a per-IP limit would throttle all their users together), `429` + `Retry-After` + `X-RateLimit-After`. The counters are per pod. The k6 and ZAP stacks disable it. `JWT_PUBLIC_KEY` / `JWT_TIMEOUT` are consumed
 by `mairie360_api_lib`'s JWT layer (MAIR-680). `LOG_FORMAT=json` switches the logs to JSON lines and the `OTEL_*` variables turn the trace export on (see Logs and observability). See `docker-compose.yml` `x-common-env` for working values.
 
 ## Architecture
