@@ -20,18 +20,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-governor"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a7ffa43d3e1e92518355ffbc82c146b5f0fe24fba87f19f405270da7a7b3c1e"
-dependencies = [
- "actix-http",
- "actix-web",
- "futures",
- "governor",
-]
-
-[[package]]
 name = "actix-http"
 version = "3.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -614,7 +602,6 @@ dependencies = [
 name = "calendar_api"
 version = "0.1.0"
 dependencies = [
- "actix-governor",
  "actix-web",
  "async-trait",
  "chrono",
@@ -2327,9 +2314,9 @@ dependencies = [
 
 [[package]]
 name = "mairie360_api_lib"
-version = "4.4.0"
+version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6da224aadbf85b3888ed015b9b72ddc10e3e5284f9d463617c84eebb34d5c06"
+checksum = "c043eee660e796a926f0ee65ed07bdddcdf2ac0e18c12cb1039cd0760bb99c4f"
 dependencies = [
  "actix-web",
  "anyhow",

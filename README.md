@@ -34,7 +34,7 @@ Optional:
 | Variable | Role |
 | --- | --- |
 | `SWAGGER_ENABLED` | `true` serves Swagger UI and `/api-docs/openapi.json`; leave it unset in production. |
-| `RATE_LIMIT_PER_SECOND` | Per-user quota of `/api` (default 10, `0` disables). |
+| `RATE_LIMIT_PER_SECOND` | Per-user quota of `/api`, per instance of the API (default 20, `0` disables). |
 | `RATE_LIMIT_BURST` | Burst of that quota (default 50). |
 | `DB_CONNECT_TIMEOUT` | Seconds to wait for Postgres at startup before panicking (lib, default 30). |
 | `DB_POOL_MIN_CONNECTIONS` / `DB_POOL_MAX_CONNECTIONS` / `DB_POOL_IDLE_TIMEOUT_SECS` | Postgres pool sizing (lib, defaults 1 / 10 / 600). |

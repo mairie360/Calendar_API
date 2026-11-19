@@ -1,17 +1,14 @@
-use actix_governor::Governor;
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::middleware::from_fn;
+use actix_web::{web, App, HttpServer};
 
 use calendar_api::database::pg_url::build_pg_url;
-use calendar_api::endpoints::rate_limit::{
-    RateLimit, DEFAULT_RATE_LIMIT_BURST, DEFAULT_RATE_LIMIT_PER_SECOND,
-};
 use calendar_api::endpoints::swagger::{swagger_enabled_from_env, ApiDoc};
 use calendar_api::endpoints::{config, health, ready};
 use calendar_api::request_log::request_logger;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::logging::telemetry::{init_telemetry, TracingLogger};
-use mairie360_api_lib::security::JwtMiddleware;
+use mairie360_api_lib::security::{rate_limit_middleware, JwtMiddleware, RateLimiter};
 use mairie360_api_lib::state::AppState;
 
 use utoipa::OpenApi;
@@ -45,26 +42,13 @@ async fn main() -> std::io::Result<()> {
     let swagger_enabled = swagger_enabled_from_env();
     tracing::info!("Swagger UI and /api-docs/openapi.json served: {swagger_enabled}");
 
-    // Per-user quota of the /api scope (MAIR-425); RATE_LIMIT_PER_SECOND=0 disables it.
-    let rate_limit = RateLimit::from_env();
-    match rate_limit {
-        Some(limit) => tracing::info!(
-            "Rate limit: {} requests/s per user, bursts of {}",
-            limit.per_second,
-            limit.burst
-        ),
-        None => tracing::warn!("Rate limit disabled (RATE_LIMIT_PER_SECOND=0)"),
-    }
-    let governor = rate_limit
-        .unwrap_or(RateLimit {
-            per_second: DEFAULT_RATE_LIMIT_PER_SECOND,
-            burst: DEFAULT_RATE_LIMIT_BURST,
-        })
-        .governor_config();
+    // One limiter for every worker (counters are per pod). `RATE_LIMIT_PER_SECOND=0` disables it.
+    let rate_limiter = RateLimiter::from_env();
 
     let server = HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
+            .app_data(rate_limiter.clone())
             // Method and path only, never the query string (MAIR-290, see `request_log`).
             .wrap(request_logger())
             // One span per request (MAIR-503), including those refused by `JwtMiddleware`; it
@@ -88,10 +72,7 @@ async fn main() -> std::io::Result<()> {
             // The last `wrap` runs first: the JWT is checked, then the caller's quota.
             .service(
                 web::scope("/api")
-                    .wrap(middleware::Condition::new(
-                        rate_limit.is_some(),
-                        Governor::new(&governor),
-                    ))
+                    .wrap(from_fn(rate_limit_middleware))
                     .wrap(JwtMiddleware)
                     .configure(config),
             )
