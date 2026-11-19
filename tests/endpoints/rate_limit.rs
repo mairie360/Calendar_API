@@ -59,9 +59,8 @@ async fn each_user_has_their_own_quota() {
 /// second, while another user is still served.
 #[tokio::test]
 async fn the_production_budget_refuses_a_user_past_its_burst() {
-    std::env::remove_var("RATE_LIMIT_PER_SECOND");
-    std::env::remove_var("RATE_LIMIT_BURST");
-    std::env::remove_var("RATE_LIMIT_TRUST_FORWARDED");
+    // Reads the environment only: no test of this binary sets `RATE_LIMIT_*`, and mutating the
+    // process environment here would race with the tests that set `JWT_*`.
     let ctx = TestContext::new().await;
     let greedy = create_user(&ctx.db, "Greedy", Some("User")).await;
     let other = create_user(&ctx.db, "Other", Some("User")).await;
