@@ -1,5 +1,4 @@
 use actix_web::{get, web, HttpResponse, Responder};
-use mairie360_api_lib::database::db_interface::id_from_sql;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -102,12 +101,6 @@ pub async fn get_event_members(
         .map_err(database_error)?;
 
     Ok(HttpResponse::Ok().json(GetMembersResultView {
-        members: members
-            .into_iter()
-            .map(|member| MemberView {
-                id: id_from_sql(member.user_id()),
-                validation_status: member.validation_status(),
-            })
-            .collect(),
+        members: members.into_iter().map(MemberView::from).collect(),
     }))
 }

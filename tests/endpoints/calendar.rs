@@ -131,8 +131,8 @@ async fn mair_524_calendar_lists_members_like_the_event_detail() {
         assert_eq!(
             listed["members"],
             serde_json::json!([
-                { "id": first, "validation_status": status },
-                { "id": second, "validation_status": status },
+                { "id": first, "validation_status": status, "participation": "pending" },
+                { "id": second, "validation_status": status, "participation": "pending" },
             ]),
             "{event}"
         );
@@ -173,7 +173,7 @@ async fn mair_524_calendar_does_not_leak_members_the_detail_route_refuses() {
     let private = ctx.event(creator, "Private").await;
     add_member(&ctx.db, private, member).await;
     let app = init_app!(ctx);
-    let expected = serde_json::json!([{ "id": member, "validation_status": "pending" }]);
+    let expected = serde_json::json!([{ "id": member, "validation_status": "pending", "participation": "pending" }]);
     for allowed in [creator, member] {
         let listed = listed_event(&calendar_of!(app, allowed), private).expect("listed");
         assert_eq!(listed["members"], expected, "{allowed}");

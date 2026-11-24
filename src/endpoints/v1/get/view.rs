@@ -3,6 +3,7 @@ use mairie360_api_lib::database::db_interface::id_from_sql;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::database::calendar::get::view::Event;
+use crate::database::event::get_event_members::view::Participation;
 use crate::database::event::model::{
     is_event_date, EventCategory, EventRecurrence, EventVisibility,
 };
@@ -94,10 +95,13 @@ pub struct EventView {
     /// assigned, or when the caller may not read the event's detail (a `Private` event listed
     /// only because the caller is its owner without being its creator nor a member).
     #[schema(example = json!([
-        { "id": 42, "validation_status": "validated" },
-        { "id": 51, "validation_status": "validated" }
+        { "id": 42, "validation_status": "validated", "participation": "accepted" },
+        { "id": 51, "validation_status": "validated", "participation": "pending" }
     ]))]
     pub members: Vec<Member>,
+    /// Answer of the caller to the invitation (`accepted`, `pending` or `declined`), or `null`
+    /// when they are not assigned to the event.
+    pub my_participation: Option<Participation>,
 }
 
 impl From<Event> for EventView {
@@ -114,14 +118,8 @@ impl From<Event> for EventView {
             service: event.service,
             location: event.location,
             recurrence: event.recurrence,
-            members: event
-                .members
-                .into_iter()
-                .map(|member| Member {
-                    id: id_from_sql(member.user_id()),
-                    validation_status: member.validation_status(),
-                })
-                .collect(),
+            members: event.members.into_iter().map(Member::from).collect(),
+            my_participation: event.my_participation,
         }
     }
 }

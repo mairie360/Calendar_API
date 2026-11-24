@@ -20,7 +20,7 @@ async fn test_add_member_success() {
     );
     let id = db.fetch_scalar::<i32, _>(&view).await.unwrap() as u64;
 
-    let view = AddUserToEventQueryView::new(2, id);
+    let view = AddUserToEventQueryView::new(2, id, 1);
     assert!(db.execute(&view).await.is_ok());
 
     let view = GetEventQueryView::new(id);
@@ -34,7 +34,7 @@ async fn test_add_member_success() {
 async fn test_add_member_event_not_found() {
     let db = api_db().await;
 
-    let view = AddUserToEventQueryView::new(1, 99999);
+    let view = AddUserToEventQueryView::new(1, 99999, 1);
     let result = db.execute(&view).await;
 
     assert!(matches!(result, Err(DbError::ForeignKeyViolation(_))));

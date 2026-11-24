@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use utoipa::ToSchema;
 
 use crate::database::event::access::view::ApprovalStatus;
-use crate::database::event::get_event_members::view::EventValidationStatus;
+use crate::database::event::get_event_members::view::{EventValidationStatus, Participation};
 use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
 
 /// Member of an event.
@@ -14,6 +14,9 @@ pub struct Member {
     /// Approval status of the event, repeated on every member (`approval_status` of the event,
     /// in the `validated` / `refused` / `pending` vocabulary).
     pub validation_status: EventValidationStatus,
+    /// Answer of this member to the invitation: `pending` until they answer, then `accepted`
+    /// or `declined`.
+    pub participation: Participation,
 }
 
 /// Rights of the caller on the event.
@@ -31,6 +34,10 @@ pub struct EventPermissionsView {
     /// creator, on an event still pending.
     #[schema(example = false)]
     pub can_validate: bool,
+    /// The caller can answer the invitation (`PUT /api/v1/events/{event_id}/participation`):
+    /// they are assigned to the event.
+    #[schema(example = true)]
+    pub can_respond: bool,
 }
 
 /// Detail of an event.
@@ -71,9 +78,21 @@ pub struct GetEventResultView {
     pub created_by: Option<u64>,
     /// Assigned members, sorted by id.
     pub members: Vec<Member>,
+    /// Answer of the caller to the invitation, or `null` when they are not assigned.
+    pub my_participation: Option<Participation>,
     /// Approval of the event: `pending` while a Responsable has not decided (events created by a
     /// User or Guest, or moved by their creator since), `approved` or `rejected` otherwise.
     pub approval_status: ApprovalStatus,
     /// Rights of the caller on this event, to be used as is by clients.
     pub permissions: EventPermissionsView,
+}
+
+impl From<crate::database::event::get_event_members::view::Member> for Member {
+    fn from(member: crate::database::event::get_event_members::view::Member) -> Self {
+        Self {
+            id: mairie360_api_lib::database::db_interface::id_from_sql(member.user_id()),
+            validation_status: member.validation_status(),
+            participation: member.participation(),
+        }
+    }
 }

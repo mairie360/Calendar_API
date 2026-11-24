@@ -124,7 +124,11 @@ pub async fn add_event_member(
     // Unique index on (event_id, user_id): only a duplicate is a conflict, any other failure is
     // a database error.
     match tx
-        .execute(&AddUserToEventQueryView::new(view.user_id, event_id))
+        .execute(&AddUserToEventQueryView::new(
+            view.user_id,
+            event_id,
+            auth_user.id,
+        ))
         .await
     {
         Ok(()) => {}

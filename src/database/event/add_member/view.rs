@@ -14,11 +14,13 @@ pub struct AddUserToEventQueryView {
 }
 
 impl AddUserToEventQueryView {
-    pub fn new(user_id: u64, event_id: u64) -> Self {
+    /// `caller_id` is who assigns: a user assigning themselves is `accepted`, others `pending`.
+    pub fn new(user_id: u64, event_id: u64, caller_id: u64) -> Self {
         Self {
             params: vec![
                 QueryParam::I32(id_to_sql(user_id)),
                 QueryParam::I32(id_to_sql(event_id)),
+                QueryParam::I32(id_to_sql(caller_id)),
             ],
         }
     }
@@ -34,7 +36,9 @@ impl AddUserToEventQueryView {
 
 impl ApiRequestDto for AddUserToEventQueryView {
     fn query_sql(&self) -> &'static str {
-        "INSERT INTO event_members (user_id, event_id) VALUES ($1, $2)"
+        // A member assigning themselves takes part; anyone else is invited and has not answered.
+        "INSERT INTO event_members (user_id, event_id, participation) \
+         VALUES ($1, $2, CASE WHEN $1 = $3 THEN 'accepted' ELSE 'pending' END)"
     }
 
     fn query_params(&self) -> &[QueryParam] {
