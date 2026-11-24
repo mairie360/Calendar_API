@@ -23,7 +23,7 @@ async fn test_remove_member_success() {
 
     let id = create_event(&db).await;
 
-    let view = AddUserToEventQueryView::new(2, id);
+    let view = AddUserToEventQueryView::new(2, id, 1);
     assert!(db.execute(&view).await.is_ok());
 
     let view = RemoveUserFromEventQueryView::new(2, id);

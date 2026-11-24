@@ -200,7 +200,7 @@ Three tiers, assembled in `main.rs`:
    `v1::config`. A valid JWT is required; handlers receive an `AuthenticatedUser` extractor
    exposing `auth_user.id` (the caller's user id).
 3. Route tree: `/api/v1/events` (POST create, `/{event_id}/` GET/PATCH/DELETE, `/{event_id}/validation`
-   PATCH, `/{event_id}/members/` GET/POST + `/{member_id}/` DELETE), `/api/v1/calendar` (GET, time-range
+   PATCH, `/{event_id}/participation` PUT, `/{event_id}/members/` GET/POST + `/{member_id}/` DELETE), `/api/v1/calendar` (GET, time-range
    query); the template's `/api/v1/params/*` `501` placeholder was removed (MAIR-427). Published paths are
    relative to `/api`; `tests/routing_test.rs` checks each published operation hits a mounted route.
 
@@ -222,6 +222,13 @@ Member changes never touch it; a PATCH moving the event (`EventInput::changes_sc
 location) by an editor without a manager role sends it back to `pending` in the same `UPDATE`.
 `event_members.validation_status` is no longer read nor written: the members views return the event's status
 for every member.
+
+Each member also carries their own answer to the invitation, `event_members.participation` (`pending`,
+`accepted`, `declined`; Database `mair-1122-01`): returned as `participation` per member and as the caller's
+`my_participation` (`null` when not assigned) by `GET /calendar`, `GET /{event_id}/` and the members list. A member
+assigning themselves is stored `accepted`, anyone else `pending`. `PUT /{event_id}/participation`
+(`{"status": "accepted" | "declined"}`) is reserved to an assigned member (`permissions.can_respond`), for
+themselves, in a transaction like the other writes; it never touches the approval.
 
 Every `/{event_id}` operation goes through `endpoints/error.rs::require_event_access` (one
 `EventAccessQueryView` query; 404 unknown event, 403 refused): reading needs a `public` event, or the caller to be
@@ -267,7 +274,7 @@ default). Never
 `eprintln!`, never a client error for a server failure. Deleting an event removes its orphan recurrence rule in the same
 statement.
 
-Every write on an existing event (PATCH, DELETE, members POST/DELETE, PATCH validation) runs in **one
+Every write on an existing event (PATCH, DELETE, members POST/DELETE, PATCH validation, PUT participation) runs in **one
 transaction** (`SmartDatabase::begin`, MAIR-420) opened by `require_event_access_in`: it locks the event row
 (`LockEventQueryView`, `FOR UPDATE`), computes the caller's rights, then runs the write queries and commits. An
 early `?` drops the transaction, which rolls it back. Reads keep `require_event_access` (no transaction). A new

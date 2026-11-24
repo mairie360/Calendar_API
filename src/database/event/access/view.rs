@@ -104,6 +104,11 @@ impl EventAccess {
         self.is_member && (self.is_creator() || self.manager_role)
     }
 
+    /// An assigned member answers the invitation.
+    pub fn can_respond(&self) -> bool {
+        self.is_member
+    }
+
     pub fn can_delete(&self) -> bool {
         self.is_creator()
     }

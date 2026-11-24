@@ -1,6 +1,7 @@
 pub mod delete;
 pub mod get;
 pub mod members;
+pub mod participation;
 pub mod patch;
 pub mod validation;
 
@@ -13,6 +14,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(patch::endpoint::patch_event)
             .service(delete::endpoint::delete_event)
             .service(validation::endpoint::update_event_validation)
+            .service(participation::endpoint::update_participation)
             .configure(members::config),
     );
 }

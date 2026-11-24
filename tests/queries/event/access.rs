@@ -28,7 +28,7 @@ async fn access(db: &Database, event_id: u64, user_id: u64) -> EventAccess {
 }
 
 async fn add_member(db: &Database, event_id: u64, user_id: u64) {
-    db.execute(&AddUserToEventQueryView::new(user_id, event_id))
+    db.execute(&AddUserToEventQueryView::new(user_id, event_id, user_id))
         .await
         .unwrap();
 }

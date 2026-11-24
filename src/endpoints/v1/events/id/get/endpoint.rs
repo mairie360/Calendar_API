@@ -40,18 +40,17 @@ pub async fn load_event(
         recurrence: input.recurrence,
         owner: event.owner_id().map(id_from_sql),
         created_by: event.created_by().map(id_from_sql),
-        members: members
-            .into_iter()
-            .map(|member| MemberView {
-                id: id_from_sql(member.user_id()),
-                validation_status: member.validation_status(),
-            })
-            .collect(),
+        my_participation: members
+            .iter()
+            .find(|member| member.user_id() == access.caller_id)
+            .map(Member::participation),
+        members: members.into_iter().map(MemberView::from).collect(),
         approval_status: access.approval_status,
         permissions: EventPermissionsView {
             can_edit: access.can_edit(),
             can_delete: access.can_delete(),
             can_validate: access.can_validate(),
+            can_respond: access.can_respond(),
         },
     })
 }
@@ -89,11 +88,12 @@ pub async fn load_event(
                 "owner": 42,
                 "created_by": 42,
                 "members": [
-                    { "id": 42, "validation_status": "pending" },
-                    { "id": 51, "validation_status": "pending" }
+                    { "id": 42, "validation_status": "pending", "participation": "accepted" },
+                    { "id": 51, "validation_status": "pending", "participation": "pending" }
                 ],
+                "my_participation": "accepted",
                 "approval_status": "pending",
-                "permissions": { "can_edit": true, "can_delete": true, "can_validate": false }
+                "permissions": { "can_edit": true, "can_delete": true, "can_validate": false, "can_respond": true }
             })
         ),
         (

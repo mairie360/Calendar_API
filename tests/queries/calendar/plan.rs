@@ -141,7 +141,7 @@ fn mair_524_every_calendar_write_invalidates_the_calendar_cache() {
         ),
         (
             "add member",
-            AddUserToEventQueryView::new(1, 1).invalidated_read_caches(),
+            AddUserToEventQueryView::new(1, 1, 1).invalidated_read_caches(),
         ),
         (
             "remove member",

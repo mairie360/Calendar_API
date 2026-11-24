@@ -26,7 +26,7 @@ impl ApiRequestDto for GetEventMemberQueryView {
     fn query_sql(&self) -> &'static str {
         // The approval is taken for the whole event: every member carries the event's status.
         "SELECT to_jsonb(t) FROM (
-            SELECT em.user_id, e.approval_status AS validation_status
+            SELECT em.user_id, e.approval_status AS validation_status, em.participation
             FROM event_members em JOIN events e ON e.id = em.event_id
             WHERE em.event_id = $1
             ORDER BY em.user_id
@@ -75,10 +75,36 @@ impl Display for EventValidationStatus {
     }
 }
 
+/// Answer of a member to the invitation: `pending` until they answer, then `accepted` or
+/// `declined` (`event_members.participation`).
+#[derive(
+    Copy, Debug, Default, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize, ToSchema,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Participation {
+    Accepted,
+    #[default]
+    Pending,
+    Declined,
+}
+
+impl Participation {
+    /// Value stored in `event_members.participation`.
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Participation::Accepted => "accepted",
+            Participation::Pending => "pending",
+            Participation::Declined => "declined",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Member {
     user_id: i32,
     validation_status: EventValidationStatus,
+    #[serde(default)]
+    participation: Participation,
 }
 
 impl Member {
@@ -86,7 +112,17 @@ impl Member {
         Self {
             user_id,
             validation_status,
+            participation: Participation::Pending,
         }
+    }
+
+    pub fn with_participation(mut self, participation: Participation) -> Self {
+        self.participation = participation;
+        self
+    }
+
+    pub fn participation(&self) -> Participation {
+        self.participation
     }
 
     pub fn user_id(&self) -> i32 {

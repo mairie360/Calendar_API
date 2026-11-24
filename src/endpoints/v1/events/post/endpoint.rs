@@ -141,6 +141,7 @@ pub async fn create_event(
             .execute(&AddUserToEventQueryView::new(
                 user_id,
                 id_from_sql(event_id),
+                auth_user.id,
             ))
             .await
         {

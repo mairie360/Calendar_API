@@ -12,7 +12,7 @@ async fn test_member_sees_event_without_owning_it() {
 
     // Propriété d'Alice (1), Bob (2) est ajouté comme membre.
     let id = create_event(&db, 1, &event_input("Shared Meeting", None, start, end)).await;
-    db.execute(&AddUserToEventQueryView::new(2, id))
+    db.execute(&AddUserToEventQueryView::new(2, id, 1))
         .await
         .unwrap();
 

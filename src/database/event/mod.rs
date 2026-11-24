@@ -6,5 +6,6 @@ pub mod edit;
 pub mod get;
 pub mod get_event_members;
 pub mod model;
+pub mod participation;
 pub mod remove_member;
 pub mod validation;

@@ -5,7 +5,7 @@ use mairie360_api_lib::database::db_interface::{
 };
 use mairie360_api_lib::smart_db::ReadCache;
 
-use crate::database::event::get_event_members::view::Member;
+use crate::database::event::get_event_members::view::{Member, Participation};
 use crate::database::event::model::{EventCategory, EventRecurrence, EventVisibility};
 
 /// Read-cache namespace of `GET /calendar`: every write view that can change a calendar page
@@ -79,7 +79,8 @@ impl ApiRequestDto for GetCalendarQueryView {
         //
         // The members of each listed event and the event's approval status (MAIR-524) come from
         // one lateral aggregate on `event_members (event_id, …)`, run on the filtered rows only,
-        // which also gives `is_member`. They are exposed under the rule of `GET /events/{id}`
+        // which also gives `is_member` and the caller's own answer (`my_participation`). They are
+        // exposed under the rule of `GET /events/{id}`
         // (`EventAccess::can_view`: public, member or **creator**); an event listed only because
         // the caller is its `owner_id` without being its creator nor a member gets `[]`, so the
         // list never shows members the detail route would refuse.
@@ -87,7 +88,7 @@ impl ApiRequestDto for GetCalendarQueryView {
             "SELECT to_jsonb(t) FROM ( \
                 SELECT e.id, e.name, e.start_date, e.end_date, e.category, \
                     e.service_label AS service, e.location, e.visibility, \
-                    COALESCE(m.has_caller, false) AS is_member, \
+                    COALESCE(m.has_caller, false) AS is_member, m.mine AS my_participation, \
                     CASE WHEN e.visibility = 'public' OR e.created_by = $3 \
                         OR COALESCE(m.has_caller, false) \
                     THEN COALESCE(m.members, '[]'::jsonb) ELSE '[]'::jsonb END AS members, ",
@@ -96,8 +97,10 @@ impl ApiRequestDto for GetCalendarQueryView {
                 FROM events e LEFT JOIN recurrence_rules rr ON rr.id = e.recurrence_id \
                 LEFT JOIN LATERAL ( \
                     SELECT jsonb_agg(jsonb_build_object('user_id', em.user_id, \
-                            'validation_status', e.approval_status) ORDER BY em.user_id) AS members, \
-                        bool_or(em.user_id = $3) AS has_caller \
+                            'validation_status', e.approval_status, \
+                            'participation', em.participation) ORDER BY em.user_id) AS members, \
+                        bool_or(em.user_id = $3) AS has_caller, \
+                        max(em.participation) FILTER (WHERE em.user_id = $3) AS mine \
                     FROM event_members em WHERE em.event_id = e.id \
                 ) m ON true \
                 WHERE e.id IN ( \
@@ -149,6 +152,9 @@ pub struct Event {
     /// the caller may not read the event's detail (see the query).
     #[serde(default)]
     pub members: Vec<Member>,
+    /// Answer of the caller to the invitation, `None` when they are not assigned.
+    #[serde(default)]
+    pub my_participation: Option<Participation>,
 }
 
 impl Event {
@@ -170,6 +176,7 @@ impl Event {
             visibility: "public".to_string(),
             recurrence: None,
             members: Vec::new(),
+            my_participation: None,
         }
     }
 

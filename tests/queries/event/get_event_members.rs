@@ -19,7 +19,7 @@ async fn test_get_event_members_success() {
     );
     let id = db.fetch_scalar::<i32, _>(&view).await.unwrap() as u64;
 
-    let view = AddUserToEventQueryView::new(2, id);
+    let view = AddUserToEventQueryView::new(2, id, 1);
     assert!(db.execute(&view).await.is_ok());
 
     let view = GetEventMemberQueryView::new(id);
