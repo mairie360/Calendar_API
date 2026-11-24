@@ -224,8 +224,9 @@ location) by an editor without a manager role sends it back to `pending` in the 
 for every member.
 
 Each member also carries their own answer to the invitation, `event_members.participation` (`pending`,
-`accepted`, `declined`; Database `mair-1122-01`): returned as `participation` per member and as the caller's
-`my_participation` (`null` when not assigned) by `GET /calendar`, `GET /{event_id}/` and the members list. A member
+`accepted`, `declined`; Database `mair-1122-01`): returned as `participation` per member by `GET /calendar`,
+`GET /{event_id}/` and the members list, and as the caller's `my_participation` (`null` when not assigned) by
+`GET /calendar` and `GET /{event_id}/` (the members list already carries the caller's row). A member
 assigning themselves is stored `accepted`, anyone else `pending`. `PUT /{event_id}/participation`
 (`{"status": "accepted" | "declined"}`) is reserved to an assigned member (`permissions.can_respond`), for
 themselves, in a transaction like the other writes; it never touches the approval.
