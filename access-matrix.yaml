@@ -47,7 +47,7 @@ operations:
   GET /api/v1/events/{event_id}/:
     access: authenticated
     ownership: [creator, member, responsable]
-    personal: [created_by, owner, members.id]
+    personal: [created_by, owner, members.id, members.participation, my_participation]
     note: "a public event is readable by every agent"
   PATCH /api/v1/events/{event_id}/:
     access: authenticated
@@ -58,9 +58,14 @@ operations:
   GET /api/v1/events/{event_id}/members/:
     access: authenticated
     ownership: [creator, member, responsable]
-    personal: [members.id, members.validation_status]
+    personal: [members.id, members.validation_status, members.participation]
     note: "a public event's members are readable by every agent"
   POST /api/v1/events/{event_id}/members/: {access: authenticated, ownership: [creator, responsable]}
   DELETE /api/v1/events/{event_id}/members/{member_id}/: {access: authenticated, ownership: [creator, responsable]}
 
+  PUT /api/v1/events/{event_id}/participation:
+    access: authenticated
+    ownership: [member, responsable]
+    personal: [participation]
+    note: "any assigned member (the assigned Responsable too) answers for themself only; the creator answers once assigned"
   PATCH /api/v1/events/{event_id}/validation: {access: authenticated, ownership: [responsable]}

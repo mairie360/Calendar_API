@@ -12,7 +12,7 @@ use crate::endpoints::v1::events::id::participation::view::UpdateParticipationVi
 
 #[utoipa::path(
     put,
-    path = "participation",
+    path = "",
     summary = "Answer the invitation to an event",
     description = "Records the caller's own answer to the event: `accepted` (they take part) or \
                    `declined`. Only an assigned member answers, for themselves only; anyone else \
