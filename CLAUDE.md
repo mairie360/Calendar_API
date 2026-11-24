@@ -89,9 +89,8 @@ polling `/ready`, and dependent services wait for it with `service_completed_suc
 
 **Session tokens (MAIR-680).** Only Core_API signs them, with its Ed25519 key (`EdDSA`, `kid` = RFC 7638
 thumbprint, `iss` `mairie360-core`, `aud` `mairie360`). This API only gets `JWT_PUBLIC_KEY` (Core's public key as
-PEM, several `PUBLIC KEY` blocks during a rotation, `\n`-escaped line breaks accepted) and checks them with the lib
-(4.3.0). No `JWT_SECRET`: while it is set the lib still accepts HS256 tokens signed with it (transition), so a
-deployment removes it once `JWT_PUBLIC_KEY` is in place, and every HS256 token is then refused.
+PEM, several `PUBLIC KEY` blocks during a rotation, `\n`-escaped line breaks accepted) and checks them with the lib.
+Since lib 6.0.0 `JWT_PUBLIC_KEY` is required, `JWT_SECRET` is no longer read and every HS256 token is refused.
 
 **No test credential is committed (MAIR-428).** The test scripts source `test_secrets.sh`, which generates a fresh
 Ed25519 key pair per run (an exported `JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY` pair wins), exports the public key and
