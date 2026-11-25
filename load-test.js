@@ -232,6 +232,15 @@ const writeHandlers = {
     deleteEvent(eventId);
   },
 
+  // Participation: the admin assigns the agent, who then declines the invitation.
+  'PUT /api/v1/events/{event_id}/participation': ({ request }) => {
+    const eventId = createEvent('k6 participation', [AGENT_ID]);
+    check(request({ path: { event_id: eventId }, body: { status: 'declined' }, headers: AGENT }), {
+      'set participation 204': (r) => r.status === 204,
+    });
+    deleteEvent(eventId);
+  },
+
   // Validation circuit: user 2 (User) creates an event with the Responsable (user 3, same group)
   // assigned, so it waits for validation; the Responsable approves it.
   'PATCH /api/v1/events/{event_id}/validation': ({ request }) => {
