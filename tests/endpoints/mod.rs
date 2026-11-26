@@ -10,6 +10,7 @@ pub mod calendar;
 pub mod calendar_cache;
 pub mod creation;
 pub mod input;
+pub mod mair_1228_global_search;
 pub mod mair_680_session_keys;
 pub mod members;
 pub mod participation;

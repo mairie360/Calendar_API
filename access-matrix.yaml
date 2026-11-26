@@ -35,6 +35,10 @@ operations:
   GET /health: {access: public}
   GET /ready: {access: public}
 
+  GET /api/v1/search:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+    note: "global search: the public events and the caller's own"
   GET /api/v1/calendar:
     access: authenticated
     roles: [Admin, Maire, Responsable, User, Guest]

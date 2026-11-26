@@ -167,6 +167,12 @@ const spec = loadSpec();
 const readHandlers = {
   'GET /health': ({ request }) => check(request(), { 'health 200': (r) => r.status === 200 }),
   'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
+  // Global search of the shared header: the events the agent sees.
+  'GET /api/v1/search': ({ request }) =>
+    check(request({ query: { q: 'perf', limit: 8 }, headers: randomAgent().headers }), {
+      'search 200': (r) => r.status === 200,
+      'search answers a list': (r) => r.status === 200 && Array.isArray(r.json('items')),
+    }),
   'GET /api/v1/calendar': ({ request }) =>
     check(request({ query: randomWindow(), headers: randomAgent().headers }), {
       'calendar 200': (r) => r.status === 200,
