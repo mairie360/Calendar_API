@@ -2999,6 +2999,420 @@
       ]
     },
     {
+      "name": "Global search (MAIR-1228)",
+      "item": [
+        {
+          "name": "MAIR-1228 Pre-request: a unique term for the searched events",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const letters = Date.now().toString(36).replace(/[0-9]/g, (d) => 'abcdefghij'[d]);",
+                  "pm.environment.set('mair_1228_term', `Recherche${letters}`);",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 Create a public event holding the term",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('mair_1228_public_id', String(pm.response.json().event_id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{mair_1228_term}} du conseil\",\n  \"description\": \"Ordre du jour envoyé une semaine avant\",\n  \"events_start_time\": \"2031-03-05T18:00:00Z\",\n  \"events_end_time\": \"2031-03-05T20:00:00Z\",\n  \"visibility\": \"Public\",\n  \"category\": \"meeting\"\n}"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 Create a private event holding the term",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('mair_1228_private_id', String(pm.response.json().event_id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Réunion {{mair_1228_term}}\",\n  \"description\": \"Ordre du jour envoyé une semaine avant\",\n  \"events_start_time\": \"2031-03-05T18:00:00Z\",\n  \"events_end_time\": \"2031-03-05T20:00:00Z\",\n  \"visibility\": \"Private\",\n  \"category\": \"meeting\"\n}"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 The creator finds both events, the name starting with the term first",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json().items;",
+                  "pm.test('Public event first, then the private one, with the contract shape', () => {",
+                  "    pm.expect(items.map((item) => item.id)).to.eql([Number(pm.environment.get('mair_1228_public_id')), Number(pm.environment.get('mair_1228_private_id'))]);",
+                  "    items.forEach((item) => {",
+                  "        pm.expect(item.kind).to.eql('event');",
+                  "        pm.expect(item.parent_id).to.eql(null);",
+                  "        pm.expect(item.excerpt).to.eql('Ordre du jour envoyé une semaine avant');",
+                  "        pm.expect(item.updated_at).to.eql('2031-03-05T18:00:00Z');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?q={{mair_1228_term}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{mair_1228_term}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 Another agent only finds the public event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Only the public event', () => {",
+                  "    pm.expect(pm.response.json().items.map((item) => item.id)).to.eql([Number(pm.environment.get('mair_1228_public_id'))]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_agent}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?q={{mair_1228_term}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{mair_1228_term}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 A one-character term is refused",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('The body names the field', () => pm.expect(pm.response.text()).to.include('`q`'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?q=a",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "a"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 A limit above 20 is refused",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('The body names the field', () => pm.expect(pm.response.text()).to.include('`limit`'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?q={{mair_1228_term}}&limit=21",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{mair_1228_term}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "21"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 Delete the public event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{mair_1228_public_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{mair_1228_public_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 Delete the private event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/{{mair_1228_private_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events",
+                "{{mair_1228_private_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1228 Deleted events are no longer found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('No result', () => pm.expect(pm.response.json().items).to.eql([]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?q={{mair_1228_term}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{mair_1228_term}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Cleanup",
       "item": [
         {
