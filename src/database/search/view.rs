@@ -6,15 +6,15 @@ use utoipa::ToSchema;
 /// What a global search result is. Calendar finds events only.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum SearchKind {
+pub enum GlobalSearchKind {
     /// An event; `id` is reusable in `GET /api/v1/events/{event_id}/`.
     Event,
 }
 
 /// One result of the global search.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-pub struct SearchItem {
-    pub kind: SearchKind,
+pub struct GlobalSearchItem {
+    pub kind: GlobalSearchKind,
     /// Id of the event.
     #[schema(example = 21)]
     pub id: i64,

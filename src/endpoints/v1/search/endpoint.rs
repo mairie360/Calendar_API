@@ -1,6 +1,6 @@
-use crate::database::search::view::{GlobalSearchQueryView, SearchItem};
+use crate::database::search::view::{GlobalSearchItem, GlobalSearchQueryView};
 use crate::endpoints::error::{database_error, ApiError};
-use crate::endpoints::v1::search::view::{like_escape, SearchQuery, SearchResultView};
+use crate::endpoints::v1::search::view::{like_escape, GlobalSearchResultView, SearchQuery};
 use actix_web::{get, web, HttpResponse, Responder};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
@@ -22,7 +22,7 @@ use mairie360_api_lib::state::AppState;
         (
             status = 200,
             description = "At most `limit` events, best match first. Empty when nothing matches.",
-            body = SearchResultView,
+            body = GlobalSearchResultView,
             example = json!({
                 "items": [
                     {
@@ -80,10 +80,10 @@ pub async fn global_search(
 ) -> Result<impl Responder, ApiError> {
     query.validate()?;
     let view = GlobalSearchQueryView::new(caller.id, &like_escape(query.term()), query.limit());
-    let items: Vec<SearchItem> = state
+    let items: Vec<GlobalSearchItem> = state
         .get_smart_db()
         .fetch_all(&view)
         .await
         .map_err(database_error)?;
-    Ok(HttpResponse::Ok().json(SearchResultView { items }))
+    Ok(HttpResponse::Ok().json(GlobalSearchResultView { items }))
 }

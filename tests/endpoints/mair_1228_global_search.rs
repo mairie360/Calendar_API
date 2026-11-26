@@ -103,11 +103,11 @@ async fn mair_1228_limit_cuts_and_wildcards_match_themselves() {
     )
     .await;
     assert_eq!(ids(&limited).len(), 2, "{limited}");
-    // `%_` would match every event if the wildcards were not escaped.
+    // Unescaped, `%_<term>` would match the events above (any character before the term).
     let wildcards: Value = call_and_read_body_json(
         &app,
         TestRequest::get()
-            .uri("/api/v1/search?q=%25_")
+            .uri(&format!("/api/v1/search?q=%25_{term}"))
             .insert_header(bearer(creator))
             .to_request(),
     )
@@ -127,6 +127,8 @@ async fn mair_1228_rejects_a_short_term_a_bad_limit_and_no_session() {
         "",
         "?q=ab&limit=21",
         "?q=ab&limit=0",
+        "?q=ab&limit=abc",
+        "?q=ab&limit=-1",
     ] {
         let request = TestRequest::get()
             .uri(&format!("/api/v1/search{query}"))
